@@ -1,0 +1,98 @@
+---
+title: "Data preparation"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document:
+      fig_width: 7
+      fig_height: 6
+      fig_caption: true
+---
+```{r packages, echo = F, warning=F, message=F}
+require(zoo)
+require(ggplot2)
+require(pander)
+require(reshape2)
+require(xts)
+#panderOptions('table.split.table', 80)
+#panderOptions('table.style', 'grid')
+panderOptions('table.split.cells', 12)
+panderOptions('table.alignment.default', 'center')
+panderOptions('table.alignment.rownames', 'right')
+
+# rootwd directory
+rootwd <- "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp"
+```
+
+This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository
+
+## Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology. This document outlines the preparation of the original data into the dataframes that have been analysed in the project. The decision making on how stations were identified, is outlined in the methods of the submitted manuscript. This document is aimed at documenting the code of the analysis.
+
+## sources of data
+As outlined in the manuscript, the original data were sourced from the following locations:
+Streamflow is from the Bureau of Meteorology (BOM) hydrological reference stations [http://www.bom.gov.au/water/hrs/](http://www.bom.gov.au/water/hrs/)
+Rainfall and temperature were obtained from the BOM gridded data and the BOM station data [http://www.bom.gov.au/climate/data-services/](http://www.bom.gov.au/climate/data-services/)
+
+## Reading in the data
+The data consists of comma delimited (csv) files, as downloaded from the websites. All data cover the period 1970 - 2010.
+The following flow stations were used:
+```{r Table1, echo = F}
+setwd(rootwd)
+Stations <- read.csv("Data/CatchmentCharact.csv")
+
+pander(Stations, 
+       caption = "Stations used in this project")
+```
+
+### define decades to analyze
+
+```{r preliminaries}
+study_period_decades <- c("70_80", "80_90", "90_00", "00_10")
+decade_start <- c(as.Date("1/1/1970", format="%d/%m/%Y"), 
+                  as.Date("1/1/1980", format="%d/%m/%Y"), 
+                  as.Date("1/1/1990", format="%d/%m/%Y"), 
+                  as.Date("1/1/2000", format="%d/%m/%Y"))
+decade_end <- c(as.Date("31/12/1979", format="%d/%m/%Y"), 
+                as.Date("31/12/1989", format="%d/%m/%Y"), 
+                as.Date("31/12/1999", format="%d/%m/%Y"), 
+                as.Date("31/12/2010", format="%d/%m/%Y"))
+
+# define the overall period
+start_date <- as.Date("1970-01-01")
+end_date <- as.Date("2010-12-31")
+```
+
+### read in the stream flow data
+
+```{r streamflow}
+setwd(rootwd)
+# read un the flow data and convert to zoo
+for (i in seq_along(Stations[,1:2])) {
+  temp <- read.csv(paste("Original streamflow data/",flow_stns[,i],"_daily_ts2.csv", sep=""), 
+                   col.names=c("Date", "Q"))
+  year <- substr(as.character(temp$Date),nchar(as.character(temp$Date))-1,nchar(as.character(temp$Date)))
+  Dates <- as.Date(paste(substr(as.character(temp$Date),1,nchar(as.character(temp$Date))-2),
+                         ifelse(as.numeric(year)>=50,paste("19",year,sep=""),paste("20",year,sep="")),sep=""),
+                   "%d/%m/%Y")
+  
+  # convert ML/day to mm
+  # 1 ML = 10^6 L = 10^6 dm^3 is 10^9 cm^3 is 10^12 mm^3
+  # 1 km2 = 10^6 m^2 = 10^12 cm^2 = 10^14 mm^2
+  # ML/day to mm --> flow/area(km2)/100 = mm
+  assign(paste(colnames(flow_stns[i]), "_daily_flow", sep=""),
+         zoo(temp$Q/(CC[i,4]),order.by=Dates))
+}  
+  #####
+
+# merge all catchments to use same time interval
+flow_zoo<-merge(COTT_daily_flow,RUTH_daily_flow,CORA_daily_flow,ELIZ_daily_flow,COCH_daily_flow,COEN_daily_flow,SCOT_daily_flow,
+                HELL_daily_flow,NIVE_daily_flow,MURR_daily_flow,SOUT_daily_flow,YARR_daily_flow,DOMB_daily_flow)
+flow_zoo <- window(flow_zoo, start=start_date, end=end_date)
+
+# Also create a dataframe for flow
+flow_data_70_10<-data.frame(Date=time(flow_zoo), coredata(flow_zoo))
+colnames(flow_data_70_10)[2:14] <- colnames(flow_stns)
+#####
+```
+
