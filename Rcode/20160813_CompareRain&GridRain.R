@@ -7,6 +7,7 @@
 setwd("C:/Users/rver4657/ownCloud/Virtual Experiments")
 
 require(zoo)
+require(reshape2)
 require(xts)
 require(ggplot2)
 Today <- format(Sys.Date(),"%Y%m%d")
@@ -32,7 +33,7 @@ qqRain <- do.call(cbind,tapply(GridRainAllDataout$Rain,
                                FUN=quantile,seq(0,1,length=1000),na.rm=T))
 qqGridRain_s <- melt(qqGridRain,measure.vars=1:13)
 qqRain_s <- melt(qqRain,measure.vars=1:13)
-Rainqq <- data.frame(Station=qqRain_s$X2,qqRain=qqRain_s$value,
+Rainqq <- data.frame(Station=qqRain_s$Var2,qqRain=qqRain_s$value,
                      qqGridRain=qqGridRain_s$value)
 xyp_rainqq <- ggplot(data=Rainqq,aes(x=qqRain,y=qqGridRain))
 #xyp_rainqq <- xyp_rainqq 

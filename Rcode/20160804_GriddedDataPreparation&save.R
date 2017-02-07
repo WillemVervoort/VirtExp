@@ -81,7 +81,7 @@ write.csv(GridRainAllDataout,
 zz <- file("README_DataDescription.txt","w+")
 text <- c("Metadata Climate Change in Streamflow (MD project)",
 "authors: R.Willem Vervoort, Michaela Dolk, Floris van Ogtrop",
-"institution: Centre for Carbon Water and Food, Faculty of Agriculture and Environment, The University of Sydney",
+"institution: Centre for Carbon Water and Food, School of Life and Environmental Sciences, The University of Sydney",
 "contact: willem.vervoort@sydney.edu.au",
 "The data in this project are sourced from the Bureau of Meteorology website. ",
 "They are based on a sample of the hydrological reference stations and closest rainfall and high quality temperature stations",

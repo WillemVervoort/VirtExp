@@ -34,7 +34,7 @@ Stations <- read.csv(paste(sourcedatadir,"/Stations.csv",sep=""))
 Stations.sp <- cbind(Long=Stations[,4],Lat=Stations[,3])
 
 #for (i in 1:length(decades)) {
-for (i in 8:11) {# limited number of decades
+for (i in 8:11) {# only a limited number of decades needed for 1970 - 2010
     # read in the list of years
   Years <- dir(paste("Daily-rainfall/",decades[i],sep=""))
   yearlist <- list()
