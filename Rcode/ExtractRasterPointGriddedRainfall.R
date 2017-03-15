@@ -17,6 +17,7 @@
 # then later combine all the annual timeseries
 setwd("W:/GRP-HGIS/public/BOM_griddedrainfalldata")
 
+library(zoo)
 library(raster)
 library(rgdal)
 # map = raster(files[1]) # reads in the whole raster
@@ -31,7 +32,7 @@ Store <- list()
 sourcedatadir <- "c:/users/rver4657/owncloud/Virtual Experiments/VirtExp"
 Stations <- read.csv(paste(sourcedatadir,"data/CatchmentCharact.csv",sep="/"))
 # should be in decimal degrees
-Stations.sp <- cbind(Long=Stations[,4],Lat=Stations[,3])
+Stations.sp <- cbind(Long=Stations$Longitude,Lat=Stations$Latitude)
 
 #for (i in 1:length(decades)) {
 for (i in 8:11) {# only a limited number of decades needed for 1970 - 2010
@@ -58,11 +59,19 @@ for (i in 1:4) {
   Store2[[i]] <- Store[[i+7]]
 }
 
+output1 <- list()
 for (i in 1:4) {
-  test[[i]] <- do.call(cbind,Store2[[i]])
+  output1[[i]] <- do.call(cbind,Store2[[i]])
 }
 
-output <- t(do.call(cbind,test))
+#remove ID column
+for (i in 1:4) {
+  remove <- grep("ID",names(output1[[i]]))
+  output1[[i]] <- output1[[i]][,-as.numeric(remove)]
+}
+
+
+output <- t(do.call(cbind,output1))
 output.z <- zoo(output,order.by=seq.Date(as.Date("1970-01-01"),as.Date("2010-12-31"),by="days"))
 
-save(output.z,file="GriddedRainfallData.Rdata")
+save(output.z,file=paste(sourcedatadir,"data/GriddedRainfallData.Rdata",sep="/"))

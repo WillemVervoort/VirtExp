@@ -111,7 +111,7 @@ maxT_xts <- xts(maxT_deseas,
 maxT_weekly_xts <- apply.weekly(maxT_xts, mean)
 maxT_monthly_xts <- apply.monthly(maxT_xts,mean)
 # Maybe should calculate the "max" maximum temperature
-m.maxT_weekly_xts <- apply.weekly(maxT_xts,function(x) as.numeric(apply(x,2,max,na.rm=T)))
+m.maxT_weekly_xts <- apply(maxT_xts,2,function(x) apply.weekly(x,max,na.rm=T))
 m.maxT_monthly_xts <- apply.monthly(maxT_xts,function(x) max(x,na.rm=T))
 
 # weekly_maxT_stack <- as.data.frame(maxT_weekly_xts)
@@ -197,14 +197,14 @@ hp <- hp + geom_point(data=real.df,aes(x=tau, y=0,colour=p_value),
 save(hp,file=paste(Today,"_MKdeseasonalisedStreamflow.Rdata",sep=""))
 load("20160729_MKdeseasonalisedStreamflow.Rdata")
 # draft quality
-tiff(paste("C:/Users/rver4657/ownCloud/Virtual Experiments/",
-           Today,"_MKdeseasonalisedStreamflow.tif",sep=""),width=720,height=480)
-print(hp)
+#tiff(paste("C:/Users/rver4657/ownCloud/Virtual Experiments/",
+#          Today,"_MKdeseasonalisedStreamflow.tif",sep=""),width=720,height=480)
+#print(hp)
 dev.off()     
      
 # publication quality
-tiff(paste("C:/Users/rver4657/ownCloud/Virtual Experiments/",
-           Today,"_MKdeseasonalisedStreamflow.tif",sep=""),width=12*480,height=10*480,
+tiff(paste("C:/Users/rver4657/ownCloud/Virtual Experiments/Manuscript",
+           "MKdeseasonalisedStreamflow.tif",sep="/"),width=12*480,height=10*480,
      compression = "lzw", res=600)
 print(hp)
 dev.off()

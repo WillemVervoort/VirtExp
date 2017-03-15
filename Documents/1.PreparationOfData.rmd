@@ -8,14 +8,12 @@ output:
       fig_height: 6
       fig_caption: true
 ---
-```{r packages, echo = F, warning=F, message=F}
+```{r packages, warning=F, message=F}
 require(zoo)
 require(ggplot2)
 require(pander)
 require(reshape2)
 require(xts)
-#panderOptions('table.split.table', 80)
-#panderOptions('table.style', 'grid')
 panderOptions('table.split.cells', 12)
 panderOptions('table.alignment.default', 'center')
 panderOptions('table.alignment.rownames', 'right')
@@ -67,9 +65,9 @@ end_date <- as.Date("2010-12-31")
 This includes conversion from ML/day (as indicated on the source website) to mm to match the rainfall data and to use in models. This means that the data needs to be scaled to the catchment size:
 
 * convert ML/day to mm
-* 1 ML = 10^6 L = 10^6 dm^3 is 10^9 cm^3 is 10^12 mm^3
-* 1 km2 = 10^6 m^2 = 10^12 cm^2 = 10^14 mm^2
-* ML/day to mm --> flow/area(km2)/100 = mm
+* 1 ML = 10^6^ L = 10^6^ dm^3^ is 10^9^ cm^3^ is 10^12^ mm^3^
+* 1 km^2^ = 10^6^ m^2^ = 10^10^ cm^2^ = 10^12^ mm^2^
+* ML/day to mm --> flow (ML/day) /area(km^2^) = mm/day
 
 ```{r streamflow}
 # read in the flow data and convert to zoo
@@ -95,9 +93,6 @@ flow_zoo<-merge(COTT_daily_flow, RUTH_daily_flow, CORA_daily_flow,
 # limit to 1970 - 2010
 flow_zoo <- window(flow_zoo, start=start_date, end=end_date)
 
-# Also create a dataframe for flow
-flow_data_70_10<-data.frame(Date=time(flow_zoo), coredata(flow_zoo))
-colnames(flow_data_70_10)[2:14] <- Stations[,1]
 #####
 ```
 
@@ -126,8 +121,6 @@ for (i in seq_along(closerainfall_stns)) {
 rain_zoo<-merge(COTTRain, RUTHRain, CORARain, ELIZRain, COCHRain, 
                 COENRain, SCOTRain, HELLRain, NIVERain, MURRRain, 
                 SOUTRain, YARRRain, DOMBRain)
-rainfall_data_70_10<-data.frame(Date=time(rain_zoo), coredata(rain_zoo))
-colnames(rainfall_data_70_10)[2:14] <- Stations[,1]
 ```
 
 ### Read in the Temperature stations
@@ -154,7 +147,6 @@ maxT_zoo<-merge(COTTtemp.maxT,RUTHtemp.maxT,CORAtemp.maxT,
                 MURRtemp.maxT,SOUTtemp.maxT,YARRtemp.maxT,
                 DOMBtemp.maxT)
 
-maxT_data_70_10<-data.frame(Date=time(maxT_zoo), coredata(maxT_zoo))
 ```
 
 ## Summarising to weekly data
@@ -249,13 +241,15 @@ colnames(flow_rain_maxT_weekly) <- c("Date","Decade", "Station", "Flow",
 
 Because of the size of the overall gridded rainfall data set, only the script that describes the extraction is given in the Rcode folder: **ExtractRasterPointGriddedRainfall.R**. However the data will be compared against the station rainfall data.
 
-```{r compare_grid_station, warning=F}
+```{r compare_grid_station, warning=F, fig.cap="Simple x-y plot comparing the gridded and the rainfall station data"}
 load("Data/GriddedRainfallData.Rdata")
 # this has a data.frame called output.z, which is the gridded data
 colnames(output.z) <- Stations[,1]
 GridRainAllDataout <- melt(as.data.frame(output.z))
 colnames(GridRainAllDataout) <- c("Station","gridRain")
 GridRainAllDataout$Rain <- melt(as.data.frame(rain_zoo))[,2]
+GridRainAllDataout$Flow <- melt(as.data.frame(flow_zoo))[,2]
+GridRainAllDataout$maxT <- melt(as.data.frame(maxT_zoo))[,2]
 
 # First make a simple xyplot by catchment
 xyp_rain <- ggplot(data=GridRainAllDataout,aes(x=Rain,  y=gridRain))
@@ -263,9 +257,9 @@ xyp_rain <- xyp_rain + geom_point() + facet_wrap(~Station)
 print(xyp_rain)
 ```
 
-This shows that in general there is very little 1:1 agreement between the gridded and the station rainfall, but that is not strang. The gridded rainfall is an interpolated surface based on several stations. A better way to compare the data is probably using a qqplot
+Figure 1 shows that in general there is very little 1:1 agreement between the gridded and the station rainfall, but that is not that strange as it seems. The gridded rainfall is an interpolated surface based on several stations. A better way to compare the data is probably using a qqplot.
 
-```{r gridcompareqq}
+```{r gridcompareqq, fig.cap="QQplot comparing gridded rainfall and station data"}
 # make a qqplot
 qqGridRain <- do.call(cbind,tapply(GridRainAllDataout$gridRain,
                                GridRainAllDataout$Station,  
@@ -285,7 +279,8 @@ xyp_rainqq <- xyp_rainqq + geom_abline(intercept = 0, slope = 1,
 print(xyp_rainqq)
 ```
 
-This shows fairly good agreement across the distributions with only the high rainfall quantiles showing distinct deviations. This is logical as the gridded rainfall is a smoothed replica of the station data due to the interpolation.
+Figure 2 shows fairly good agreement across the distributions with only the high rainfall quantiles showing distinct deviations. This is logical as the gridded rainfall is a smoothed replica of the station data due to the interpolation.
+
 Another important characteristic of rainfall could be the memory,so it might be worth comparing autocorrelation graphs for the different series.
 
 ```{r acfCompare}
@@ -317,14 +312,17 @@ acfRain <- ggplot(data = rainacfdf, mapping = aes(x = lag, y = acf)) +
   geom_hline(aes(yintercept = 0)) +
   geom_segment(mapping = aes(xend = lag, yend = 0)) +
   facet_wrap(~Station)
+```
 
-# Now print both
+Now print both
+```{r print_acfGrid, fig.cap="Autocorrelation plot of the gridded rainfall data"}
 print(acfGrid)
-
+```
+```{r print_acfStation, fig.cap="Autocorrelation plot of the station rainfall data"}
 print(acfRain)
 ```
 
-This again shows little difference between the autocorrelation functions, with possibly the gridded rainfall (first graph) being slightly more auto-correlated than the station rainfall data (Second graph).
+This again shows little difference between the autocorrelation functions, with possibly the gridded rainfall (first graph, Figure 3) being slightly more auto-correlated than the station rainfall data (Second graph, Figure 4).
 
 ## Storage, combining and publishing data
 
@@ -384,4 +382,62 @@ save(GridRainAllDataout,
 write.csv(GridRainAllDataout,
           file="data/DailyDataIncludingGridded.csv",
           row.names=F)
+
+# load metadata
+zz <- file("Data/README_DataDescription.txt","w+")
+text <- c("Metadata Climate Change in Streamflow (MD project)",
+"authors: R.Willem Vervoort, Michaela Dolk, Floris van Ogtrop",
+"institution: Centre for Carbon Water and Food, Sydney Institute of
+Agriculture, The University of Sydney",
+"contact: willem.vervoort@sydney.edu.au",
+"The data in this project are sourced from the Bureau of Meteorology
+website. ",
+"They are based on a sample of the hydrological reference stations and
+closest rainfall and high quality temperature stations as well as gridded
+rainfall data",
+"These stations are given in CatchmentCharact.csv and in the Stations R
+object in the Rdata file",
+"The objects in the Rdata file are:",
+"This metadata file as a text object, called README_datadescribe",
+"Stations a dataframe with the catchment characteristcs",
+"flow_rain_maxT_weekly: a dataframe with column headers Date, decade,
+station, Flow, Rain, maxT, stations are stacked",
+"flow_zoo: all flow data for the catchments as a zoo data frame, 13
+catchments in columns",
+"rain_zoo: all rain data for the catchments as a zoo data frame, 13
+catchments in columns",
+"maxT_zoo: all maxT data for the catchments as a zoo data frame, 13
+catchments in columns",
+"GridRainAllDataout: all daily rainfall including gridded data stacked
+catchments",
+"weekGridRainAllDataout: all weekly rainfall including gridded data 
+stacked catchments",
+"The objects in the zip file are:",
+"This metadata file",
+"CatchmentCharact.csv",
+"flow_rain_maxT_weekly.csv: a dataframe with column headers Date, decade,
+station, Flow, Rain, maxT, stations are stacked",
+"weeklyDataIncludingGridded.csv: the weekly rainfall data included gridded
+as a stacked dataframe with 3 columns",
+"DailyDataIncludingGridded.csv: the daily rainfall data included gridded
+as a stacked dataframe with 3 columns")
+writeLines(text,zz)
+README_DataDescribe <- readLines(zz)
+close(zz)
+
+# write as an RData file
+save("README_DataDescribe","flow_rain_maxT_weekly","Stations","flow_zoo",
+      "rain_zoo","maxT_zoo","GridRainAllDataout",
+     "weekGridRainAllDataout", file="Data/ClimCh_project_MD.Rdata")
+
+write.csv(flow_rain_maxT_weekly,file="data/flow_rain_maxT_weekly.csv",
+          row.names=F)
+
+# create also a zip file
+zip("Data/ClimCh_project_MD.zip",
+    files = c("data/README_DataDescription.txt",
+              "data/flow_rain_maxT_weekly.csv",
+              "data/DailyDataIncludingGridded.csv",
+              "data/weeklyDataIncludingGridded.csv",
+              "data/CatchmentCharact.csv"))
 ```

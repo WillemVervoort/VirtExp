@@ -1,0 +1,31 @@
+---
+title: "3. GAM analysis of the weekly data"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document:
+      fig_width: 7
+      fig_height: 6
+      fig_caption: true
+---
+```{r setup, warning=F, message=F}
+# root dir
+knitr::opts_knit$set(root.dir = 
+                       "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_chunk$set(echo = TRUE)
+# LOAD REQUIRED PACKAGES # #####
+library(pander)
+library(tidyr)
+library(xts)
+library(zoo)
+library(mgcv)
+library(oz)
+library(Kendall)
+library(ggplot2)
+
+```
+
+This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository
+
+# Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology.
