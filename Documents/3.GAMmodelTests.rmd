@@ -352,7 +352,7 @@ resid_list <- vector("list", length=length(Stations[,1]))
 for (i in seq_along(Stations[,1])) {
   resid_list[[i]] <- zoo(residuals(gam_Flow_withRandE[[i]]$lme,
                  type="normalized"),
-                 order.by=as.Date(na.omit(subset(flow_rain_maxT_weekly,                                                   Station==Stations[,i]))$Date))
+                 order.by=as.Date(na.omit(subset(flow_rain_maxT_weekly,                                                   Station==Stations[i,1]))$Date))
 }
 resid_df <- do.call(merge.zoo,resid_list)
 names(resid_df) <- Stations[,1]
@@ -406,7 +406,7 @@ MK_resid <- do.call(rbind,lapply(resid_list,MannKendall))
 
 real_df <- data.frame(pvalue = as.numeric(MK_resid[,2]), 
                       tau = as.numeric(MK_resid[,1]),
-                      catch=colnames(flow_stns),
+                      catch=Stations[,1],
                       type=rep("real",nrow(MK_resid)))
 # A histogram of taus
 
@@ -446,7 +446,7 @@ Store_FwGRE2 <- data.frame(stn = Stations[,1],
 for (i in seq_along(Stations[,1])) {
   gamm.data <- subset(weekGridRainAllDataout,
                       weekGridRainAllDataout$Station == Stations[i,1])
-  gam_TrendFlow_withGRE[[i]] <- gamm(log(Flow +1)~s(gridRain) + s(gridRain,MaxT),
+  gam_Flow_withGRE[[i]] <- gamm(log(Flow +1)~s(gridRain) + s(gridRain,MaxT),
                                      correlation= corCAR1(), data=gamm.data,
                                      control=list(niterEM=5))
   Store_FwGRE[i,2] <- summary(gam_TrendFlow_withGRE[[i]]$lme)$AIC
@@ -464,7 +464,7 @@ resid_list <- vector("list", length=length(Stations[,1]))
 for (i in seq_along(Stations[,1])) {
   resid_list[[i]] <- zoo(residuals(gam_Flow_withGRE[[i]]$lme,
                  type="normalized"),
-                 order.by=as.Date(na.omit(subset(flow_rain_maxT_weekly,                                                   Station==Stations[,i]))$Date))
+                 order.by=as.Date(na.omit(subset(flow_rain_maxT_weekly,                                                   Station==Stations[i,1]))$Date))
 }
 resid_df <- do.call(merge.zoo,resid_list)
 names(resid_df) <- Stations[,1]
@@ -517,7 +517,7 @@ MK_resid <- do.call(rbind,lapply(resid_list,MannKendall))
 
 real_df <- data.frame(pvalue = as.numeric(MK_resid[,2]), 
                       tau = as.numeric(MK_resid[,1]),
-                      catch=colnames(flow_stns),
+                      catch=Stations[,1],
                       type=rep("real",nrow(MK_resid)))
 # A histogram of taus
 
