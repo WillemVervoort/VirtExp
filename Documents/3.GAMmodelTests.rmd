@@ -1,5 +1,5 @@
 ---
-title: "3. GAM analysis of the weekly data"
+title: "GAM analysis of the weekly data"
 author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
 date: "`r Sys.Date()`"
 output: 
@@ -22,6 +22,8 @@ library(mgcv)
 library(oz)
 library(Kendall)
 library(ggplot2)
+library(doParallel)
+library(foreach)
 
 ```
 
@@ -54,28 +56,30 @@ pander(table2,caption = "Model structures used in the Generalised additive model
 The first 2 models are actually not generalised additive mixed models (GAM) as the models only analyse a linear trend. To match the GAM analysis, we used generalised least squares (`gls()`) in R. This still allows correlated errors to be analysed
 
 ```{r model1, fig.cap="Residuals of linear mixed model analysis for trend in flow only"}
-# create an empty list
-gam_TrendOnly <- vector("list",length(Stations[,1]))
-names(gam_TrendOnly) <- Stations[,1]
-# and an empty dataframe to store results
-Store2 <- data.frame(stn = Stations[,1],
-                     trend=numeric(length(Stations[,1])),
-                     p_trend=numeric(length(Stations[,1])),
-                     AIC = numeric(length(Stations[,1])))
 # run the gls model on flowtrend only
-for (i in seq_along(Stations[,1])) {
+#for (i in seq_along(Stations[,1])) {
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store2 <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
+# for (i in seq_along(Stations[,1])) {
+#   i <- 1
   gamm.data <- subset(flow_rain_maxT_weekly,
                       flow_rain_maxT_weekly$Station == Stations[i,1])
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendOnly[[i]] <- gls(log(Flow +1)~trend, correlation= corCAR1(),
+  gam_TrendOnly <- gls(log(Flow +1)~trend, correlation= corCAR1(),
        data=gamm.data)
-  Store2[i,2:3] <- summary(gam_TrendOnly[[i]])$tTable[2,c(1,4)]
-  Store2[i,4] <- summary(gam_TrendOnly[[i]])$AIC
+  out <- list(model = gam_TrendOnly,
+              results = data.frame(Station=Stations[i,1],                                 t(summary(gam_TrendOnly)$tTable[2,c(1,4)]),
+                                   AIC=summary(gam_TrendOnly)$AIC))
+  out
 }
+stopCluster(cl)
 
 par(mfrow=c(5,3),mar=c(2,2,2,2))
 for (i in seq_along(Stations[,1])) {
-  res <- residuals(gam_TrendOnly[[i]])  
+  res <- residuals(Store2[[i]]$model)  
   plot(res, main=Stations[i,1], cex.main=0.7,
        ylab="normalised residuals",xlab="")
   n <- length(res)
@@ -83,9 +87,13 @@ for (i in seq_along(Stations[,1])) {
 }
 
 # store results
-save(Store2,file="data/Store2_TrendOnlyAnalysis.RData")
-pander(Store2, caption="Mixed model results for analysis of trend in flow only")
-
+storedir <- "c:/users/rver4657/owncloud/virtual experiments"
+save(Store2,file=paste(storedir,
+                "projectdata/Store2_TrendOnlyAnalysis.RData",
+                sep="/"))
+output <- do.call(rbind, lapply(1:length(Store2), function(i) rbind(Store2[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in flow only")
+rm(Store2)
 ```
 
 # Model 2 trend in rain  
@@ -94,27 +102,30 @@ Similar to the flow data, this analysis uses `gls()` to run the linear mixed mod
 
 ```{r model2a, fig.cap="Residuals of linear mixed model analysis for trend in station rainfall data"}
 # create an empty list
-gam_TrendR <- vector("list",length(Stations[,1]))
-names(gam_TrendR) <- Stations[,1]
 # and an empty dataframe to store results
-Store_Rain <- data.frame(stn = Stations[,1],
-                     trend=numeric(length(Stations[,1])),
-                     p_trend=numeric(length(Stations[,1])),
-                     AIC = numeric(length(Stations[,1])))
 # run the gls model on flowtrend only
-for (i in seq_along(Stations[,1])) {
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_Rain <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
   gamm.data <- subset(flow_rain_maxT_weekly,
                       flow_rain_maxT_weekly$Station == Stations[i,1])
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendR[[i]] <- gls(log(Rain + 1)~trend, correlation= corCAR1(),
+  gam_TrendR <- gls(log(Rain + 1)~trend, correlation= corCAR1(),
        data=na.omit(gamm.data))
-  Store_Rain[i,2:3] <- summary(gam_TrendR[[i]])$tTable[2,c(1,4)]
-  Store_Rain[i,4] <- summary(gam_TrendR[[i]])$AIC
+  out <- list(model = gam_TrendR,
+              results = data.frame(Station=Stations[i,1],
+                     t(summary(gam_TrendR)$tTable[2,c(1,4)]),
+                                   AIC=summary(gam_TrendR)$AIC))
+  out
 }
+stopCluster(cl)
+
 
 par(mfrow=c(5,3),mar=c(2,2,2,2))
 for (i in seq_along(Stations[,1])) {
-  res <- residuals(gam_TrendR[[i]])  
+  res <- residuals(Store_Rain[[i]]$model)  
   plot(res, main=Stations[i,1], cex.main=0.5,
        ylab="normalised residuals",xlab="")
   n <- length(res)
@@ -122,8 +133,13 @@ for (i in seq_along(Stations[,1])) {
 }
 
 # store results
-save(Store_Rain,file="data/StoreRain_TrendAnalysis.RData")
-pander(Store_Rain, caption="Mixed model results for analysis of trend in Station Rainfall")
+save(Store_Rain,file=paste(storedir,
+                  "projectdata/StoreRain_TrendAnalysis.RData",
+                    sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_Rain), 
+                     function(i) rbind(Store_Rain[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in Station Rainfall")
+rm(Store_Rain)
 ```
 
 ## Rainfall gridded data analysis  
@@ -131,27 +147,30 @@ Repeat the rainfall analysis for the gridded data to compare station data to gri
 
 ```{r model2b, fig.cap="Residuals of linear mixed model analysis for trend in station rainfall data"}
 # create an empty list
-gam_TrendGridR <- vector("list",length(Stations[,1]))
-names(gam_TrendGridR) <- Stations[,1]
 # and an empty dataframe to store results
-Store_GridRain <- data.frame(stn = Stations[,1],
-                     trend=numeric(length(Stations[,1])),
-                     p_trend=numeric(length(Stations[,1])),
-                     AIC = numeric(length(Stations[,1])))
-# run the gls model on flowtrend only
-for (i in seq_along(Stations[,1])) {
+# run the gls model on gridraintrend only
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_GridRain <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
   gamm.data <- subset(weekGridRainAllDataout,
                       weekGridRainAllDataout$Station == Stations[i,1])
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendGridR[[i]] <- gls(log(gridRain +1)~trend, correlation= corCAR1(),
+  gam_TrendGridR <- gls(log(gridRain +1)~trend, correlation= corCAR1(),
        data=gamm.data)
-  Store_GridRain[i,2:3] <- summary(gam_TrendGridR[[i]])$tTable[2,c(1,4)]
-  Store_GridRain[i,4] <- summary(gam_TrendGridR[[i]])$AIC
-}
+  out <- list(model = gam_TrendGridR,
+              results = data.frame(Station=Stations[i,1],
+                         t(summary(gam_TrendGridR)$tTable[2,c(1,4)]),
+                                   AIC=summary(gam_TrendGridR)$AIC))
+  out
+    }
+stopCluster(cl)
+
 
 par(mfrow=c(5,3),mar=c(2,2,2,2))
 for (i in seq_along(Stations[,1])) {
-  res <- residuals(gam_TrendGridR[[i]])  
+  res <- residuals(Store_GridRain[[i]]$model)  
   plot(res, main=Stations[i,1], cex.main=0.5,
        ylab="normalised residuals",xlab="")
   n <- length(res)
@@ -159,8 +178,14 @@ for (i in seq_along(Stations[,1])) {
 }
 
 # store results
-save(Store_GridRain,file="data/StoreGridRain_TrendAnalysis.RData")
-pander(Store_GridRain, caption="Mixed model results for analysis of trend in Gridded Rainfall")
+save(Store_GridRain,
+     file=paste(storedir,
+                "projectdata/StoreGridRain_TrendAnalysis.RData",
+                sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_GridRain), 
+              function(i) rbind(Store_GridRain[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in Gridded Rainfall")
+rm(Store_GridRain)
 ```
 
 # Model 3 GAMM with rainfall  
@@ -170,28 +195,28 @@ Again the analysis is run twice, once with station rainfall data (model 3a) and 
 ## Station rainfall data  
 
 ```{r model3a, fig.cap="Residuals of GAMM analysis for trend in flow data taking into consideration station rainfall data"}
-# create an empty list
-gam_TrendFlow_withR <- vector("list",length(Stations[,1]))
-names(gam_TrendFlow_withR) <- Stations[,1]
-# and an empty dataframe to store results
-Store_FwR <- data.frame(stn = Stations[,1],
-                     trend=numeric(length(Stations[,1])),
-                     p_trend=numeric(length(Stations[,1])),
-                     AIC = numeric(length(Stations[,1])))
 # Gamm model with flow and rain
-for (i in seq_along(Stations[,1])) {
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwR <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
   gamm.data <- subset(flow_rain_maxT_weekly,
                       flow_rain_maxT_weekly$Station == Stations[i,1])
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendFlow_withR[[i]] <- gamm(log(Flow +1)~s(Rain) + trend, 
+  gam_TrendFlow_withR <- gamm(log(Flow +1)~s(Rain) + trend, 
                                   correlation= corCAR1(), data=gamm.data)
-  Store_FwR[i,2:3] <- summary(gam_TrendFlow_withR[[i]]$lme)$tTable[2,c(1,5)]
-  Store_FwR[i,4] <- summary(gam_TrendFlow_withR[[i]]$lme)$AIC
-}
+  out <- list(model = gam_TrendFlow_withR,
+              results = data.frame(Station=Stations[i,1],
+                            t(summary(gam_TrendFlow_withR$lme)$tTable[2,c(1,4)]),
+                                   AIC=summary(gam_TrendFlow_withR$lme)$AIC))
+  out
+   }
+stopCluster(cl)
 
 par(mfrow=c(5,3), mar=c(2,2,2,2))
 for (i in seq_along(Stations[,1])) {
-  res <- residuals(gam_TrendFlow_withR[[i]]$lme)  
+  res <- residuals(Store_FwR[[i]]$model$lme)  
   plot(res, main=Stations[i,1], cex.main=0.5,
        ylab="normalised residuals",xlab="")
   n <- length(res)
@@ -199,35 +224,41 @@ for (i in seq_along(Stations[,1])) {
 }
 
 # store results
-save(Store_FwR,file="data/StoreFwR_TrendAnalysis.RData")
-pander(Store_FwR, caption="Mixed model results for analysis of trend in flow data taking into account Rainfall")
+save(Store_FwR,
+     file=paste(storedir,
+              "projectdata/StoreFwR_TrendAnalysis.RData",
+              sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_FwR), 
+                                function(i) rbind(Store_FwR[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in flow data taking into account Rainfall")
+rm(Store_FwR)
 ```
 
 ## Gridded rainfall data  
 
 ```{r model3b, fig.cap="Residuals of GAMM analysis for trend in flow data taking into consideration gridded rainfall data"}
-# create an empty list
-gam_TrendFlow_withGR <- vector("list",length(Stations[,1]))
-names(gam_TrendFlow_withGR) <- Stations[,1]
-# and an empty dataframe to store results
-Store_FwGR <- data.frame(stn = Stations[,1],
-                     trend=numeric(length(Stations[,1])),
-                     p_trend=numeric(length(Stations[,1])),
-                     AIC = numeric(length(Stations[,1])))
-# run the gls model on flowtrend only
-for (i in seq_along(Stations[,1])) {
+#gam model with flow and gridded rainfall
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwGR <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
   gamm.data <- subset(weekGridRainAllDataout,
                       weekGridRainAllDataout$Station == Stations[i,1])
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendFlow_withGR[[i]] <- gamm(log(Flow +1)~s(gridRain) + trend, 
+  gam_TrendFlow_withGR <- gamm(log(Flow +1)~s(gridRain) + trend, 
                                   correlation= corCAR1(), data=gamm.data)
-  Store_FwGR[i,2:3] <- summary(gam_TrendFlow_withGR[[i]]$lme)$tTable[2,c(1,5)]
-  Store_FwGR[i,4] <- summary(gam_TrendFlow_withGR[[i]]$lme)$AIC
-}
+  out <- list(model = gam_TrendFlow_withGR,
+              results = data.frame(Station=Stations[i,1],
+                            t(summary(gam_TrendFlow_withGR$lme)$tTable[2,c(1,4)]),
+                                   AIC=summary(gam_TrendFlow_withGR$lme)$AIC))
+  out
+   }
+stopCluster(cl)
 
 par(mfrow=c(5,3), mar=c(2,2,2,2))
 for (i in seq_along(Stations[,1])) {
-  res <- residuals(gam_TrendFlow_withGR[[i]]$lme)  
+  res <- residuals(Store_FwGR[[i]]$model$lme)  
   plot(res, main=Stations[i,1], cex.main=0.5,
        ylab="normalised residuals",xlab="")
   n <- length(res)
@@ -235,8 +266,14 @@ for (i in seq_along(Stations[,1])) {
 }
 
 # store results
-save(Store_FwGR,file="data/StoreFwGR_TrendAnalysis.RData")
-pander(Store_FwGR, caption="Mixed model results for analysis of trend in flow data taking into account Gridded Rainfall")
+save(Store_FwGR,
+     file=paste(storedir,
+                "projectdata/StoreFwGR_TrendAnalysis.RData",
+                sep = "/"))
+output <- do.call(rbind, lapply(1:length(Store_FwGR), 
+                                function(i) rbind(Store_FwGR[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in flow data taking into account Gridded Rainfall")
+rm(Store_FwGR)
 ```
 
 # Model 4. GAMM with rain & s(rain,MaxT) and trend
@@ -246,29 +283,29 @@ Again the analysis is run twice, once with station rainfall data (model 3a) and 
 ## Station rainfall data  
 
 ```{r model4a, fig.cap="Residuals of GAMM analysis for trend in flow data removing station rainfall and evapotranspiration effects"}
-# create an empty list
-gam_TrendFlow_withRandE <- vector("list",length(Stations[,1]))
-names(gam_TrendFlow_withRandE) <- Stations[,1]
-# and an empty dataframe to store results
-Store_FwRE <- data.frame(stn = Stations[,1],
-                     trend=numeric(length(Stations[,1])),
-                     p_trend=numeric(length(Stations[,1])),
-                     AIC = numeric(length(Stations[,1])))
-# run the gls model on flowtrend only
-for (i in seq_along(Stations[,1])) {
+# run the gamm model on rain, maxT and flow
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwRE <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
   gamm.data <- subset(flow_rain_maxT_weekly,
                       flow_rain_maxT_weekly$Station == Stations[i,1])
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendFlow_withRandE[[i]] <- gamm(log(Flow +1)~s(Rain) + s(Rain, MaxT) + 
+  gam_TrendFlow_withRandE <- gamm(log(Flow +1)~s(Rain) + s(Rain, MaxT) + 
                                        trend, correlation= corCAR1(),
                                        data=gamm.data, control=list(niterEM=0))
-  Store_FwRE[i,2:3] <- summary(gam_TrendFlow_withRandE[[i]]$lme)$tTable[2,c(1,5)]
-  Store_FwRE[i,4] <- summary(gam_TrendFlow_withRandE[[i]]$lme)$AIC
-}
+  out <- list(model = gam_TrendFlow_withRandE,
+        results = data.frame(Station=Stations[i,1],
+                      t(summary(gam_TrendFlow_withRandE$lme)$tTable[2,c(1,4)]),
+                            AIC=summary(gam_TrendFlow_withRandE$lme)$AIC))
+  out
+ }
+stopCluster(cl)
 
 par(mfrow=c(5,3), mar=c(2,2,2,2))
 for (i in seq_along(Stations[,1])) {
-  res <- residuals(gam_TrendFlow_withRandE[[i]]$lme)  
+  res <- residuals(Store_FwRE[[i]]$model$lme)  
   plot(res, main=Stations[i,1], cex.main=0.5,
        ylab="normalised residuals",xlab="")
   n <- length(res)
@@ -276,36 +313,42 @@ for (i in seq_along(Stations[,1])) {
 }
 
 # store results
-save(Store_FwRE,file="data/StoreFwRE_TrendAnalysis.RData")
-pander(Store_FwRE, caption="Mixed model results for the analysis of trend in flow data taking into account Rainfall and Evapotranspiratiion")
+save(Store_FwRE,
+     file=paste(storedir,
+                "projectdata/StoreFwRE_TrendAnalysis.RData",
+                sep = "/"))
+output <- do.call(rbind, lapply(1:length(Store_FwRE), 
+                                function(i) rbind(Store_FwRE[[i]][[2]])))
+pander(output, caption="Mixed model results for the analysis of trend in flow data taking into account Rainfall and Evapotranspiratiion")
+rm(Store_FwRE)
 ```
 
 ## Gridded rainfall data  
 
 ```{r model4b, fig.cap="Residuals of GAMM analysis for trend in flow data removing gridded rainfall and evapotranspiration effects"}
-# create an empty list
-gam_TrendFlow_withGRE <- vector("list",length(Stations[,1]))
-names(gam_TrendFlow_withGRE) <- Stations[,1]
-# and an empty dataframe to store results
-Store_FwGRE <- data.frame(stn = Stations[,1],
-                     trend=numeric(length(Stations[,1])),
-                     p_trend=numeric(length(Stations[,1])),
-                     AIC = numeric(length(Stations[,1])))
-# run the gls model on flowtrend only
-for (i in seq_along(Stations[,1])) {
+# run the gamm model on gridded rain, maxT and flow
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwGRE <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
   gamm.data <- subset(weekGridRainAllDataout,
                       weekGridRainAllDataout$Station == Stations[i,1])
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendFlow_withGRE[[i]] <- gamm(log(Flow +1)~s(gridRain) + s(gridRain,MaxT) +
+  gam_TrendFlow_withGRE <- gamm(log(Flow +1)~s(gridRain) + s(gridRain,MaxT) +
                                        trend, correlation= corCAR1(),
                                      data=gamm.data, control=list(niterEM=5))
-  Store_FwGRE[i,2:3] <- summary(gam_TrendFlow_withGRE[[i]]$lme)$tTable[2,c(1,5)]
-  Store_FwGRE[i,4] <- summary(gam_TrendFlow_withGRE[[i]]$lme)$AIC
+  out <- list(model = gam_TrendFlow_withGRE,
+        results = data.frame(Station=Stations[i,1],
+                      t(summary(gam_TrendFlow_withGRE$lme)$tTable[2,c(1,4)]),
+                            AIC=summary(gam_TrendFlow_withGRE$lme)$AIC))
+  out
 }
+stopCluster(cl)
 
 par(mfrow=c(5,3),mar=c(2,2,2,2))
 for (i in seq_along(Stations[,1])) {
-  res <- residuals(gam_TrendFlow_withGRE[[i]]$lme)  
+  res <- residuals(Store_FwGRE[[i]]$model$lme)  
   plot(res, main=Stations[i,1], cex.main=0.5,
        ylab="normalised residuals",xlab="")
   n <- length(res)
@@ -313,8 +356,14 @@ for (i in seq_along(Stations[,1])) {
 }
 
 # store results
-save(Store_FwGRE,file="data/StoreFwGRE_TrendAnalysis.RData")
-pander(Store_FwGRE, caption="Mixed model results for analysis of trend in flow data taking into account Gridded Rainfall and Evapotranspiration")
+save(Store_FwGRE,
+     file=paste(storedir,
+                "projectdata/StoreFwGRE_TrendAnalysis.RData",
+                sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_FwGRE), 
+                                function(i) rbind(Store_FwGRE[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in flow data taking into account Gridded Rainfall and Evapotranspiration")
+rm(Store_FwGRE)
 ```
 
 
@@ -324,25 +373,34 @@ This last model is to check the trend with GAMM analysis with the analysis using
 ## Station rainfall data  
 
 ```{r model5a}
-# create an empty list
-gam_Flow_withRandE <- vector("list",length(Stations[,1]))
-names(gam_Flow_withRandE) <- Stations[,1]
-# and an empty dataframe to store results
-Store_FwRE2 <- data.frame(stn = Stations[,1],
-                     AIC = numeric(length(Stations[,1])))
-# run the gls model on flowtrend only
-for (i in seq_along(Stations[,1])) {
+# run the gamm model on rain, maxT and flow
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwRE2 <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
   gamm.data <- subset(flow_rain_maxT_weekly,
                       flow_rain_maxT_weekly$Station == Stations[i,1])
-  gam_Flow_withRandE[[i]] <- gamm(log(Flow +1)~s(Rain) + s(Rain, MaxT) , 
+  gam_Flow_withRandE <- gamm(log(Flow +1)~s(Rain) + s(Rain, MaxT) , 
                                   correlation= corCAR1(), data=gamm.data,
                                   control=list(niterEM=5))
-  Store_FwRE2[i,2] <- summary(gam_Flow_withRandE[[i]]$lme)$AIC
+  out <- list(model = gam_Flow_withRandE,
+        results = data.frame(Station=Stations[i,1],
+                            AIC=summary(gam_Flow_withRandE$lme)$AIC))
+  out
 }
 
+stopCluster(cl)
+
 # store results
-save(Store_FwRE2,file="data/StoreFwRE_Analysis.RData")
-pander(Store_FwRE2, caption="Mixed model results for the analysis of flow data taking into account Rainfall and Evapotranspiratiion")
+save(Store_FwRE2,
+     file=paste(storedir,
+                "projectdata/StoreFwRE_Analysis.RData",
+                sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_FwRE2), 
+                                function(i) rbind(Store_FwRE2[[i]][[2]])))
+pander(output, caption="Mixed model results for the analysis of flow data taking into account Rainfall and Evapotranspiratiion")
+rm(Store_FwRE2)
 ```
 
 Now do the Mann-Kendall analysis on the residuals
@@ -350,7 +408,7 @@ Now do the Mann-Kendall analysis on the residuals
 # do mann kendall on the residuals
 resid_list <- vector("list", length=length(Stations[,1]))
 for (i in seq_along(Stations[,1])) {
-  resid_list[[i]] <- zoo(residuals(gam_Flow_withRandE[[i]]$lme,
+  resid_list[[i]] <- zoo(residuals(Store_FwRE2[[i]]$model$lme,
                  type="normalized"),
                  order.by=as.Date(na.omit(subset(flow_rain_maxT_weekly,                                                   Station==Stations[i,1]))$Date))
 }
@@ -366,9 +424,12 @@ resid_temp <- as.data.frame(resid_df)
 resid_temp$years <- format(time(resid_df),"%Y")
 split_resid <- split(resid_temp[,1:13],resid_temp$years)
 
-MK_list <- list()
 
-for (i in 1:500) {
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+MK_list <- foreach(i = 1:500,
+                 .packages=c("Kendall", "xts")) %dopar% {
   # reorganise the list elements
   series <- sample(1:nyears(resid_df),nyears(resid_df))
   for (j in 1:length(series)) {
@@ -381,8 +442,11 @@ for (i in 1:500) {
   # run mann kendall on the columns and store the results
   mk_r <- apply(new_df,2,MannKendall)
   
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
+  out <- do.call(cbind,mk_r)
+  out
+ }
+stopCluster(cl)
+
 
 MK_df <- do.call(rbind,MK_list)
 
@@ -436,25 +500,34 @@ pander(real_df, caption="Mann Kendall results for the GAMM residuals, ref Figure
 ## Gridded rainfall data   
 Do the same for the gridded rainfall data  
 ```{r model5b, fig.cap="Residuals of GAMM analysis of flow data removing gridded rainfall and evapotranspiration effects"}
-# create an empty list
-gam_Flow_withGRE <- vector("list",length(Stations[,1]))
-names(gam_Flow_withGRE) <- Stations[,1]
-# and an empty dataframe to store results
-Store_FwGRE2 <- data.frame(stn = Stations[,1],
-                     AIC = numeric(length(Stations[,1])))
-# run the gls model on flowtrend only
-for (i in seq_along(Stations[,1])) {
+# run the gamm model on rain, maxT and flow
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwGRE2 <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {  
   gamm.data <- subset(weekGridRainAllDataout,
                       weekGridRainAllDataout$Station == Stations[i,1])
-  gam_Flow_withGRE[[i]] <- gamm(log(Flow +1)~s(gridRain) + s(gridRain,MaxT),
+  gam_Flow_withGRE <- gamm(log(Flow +1)~s(gridRain) + s(gridRain,MaxT),
                                      correlation= corCAR1(), data=gamm.data,
                                      control=list(niterEM=5))
-  Store_FwGRE[i,2] <- summary(gam_TrendFlow_withGRE[[i]]$lme)$AIC
+  out <- list(model = gam_Flow_withGRE,
+        results = data.frame(Station=Stations[i,1],
+                            AIC=summary(gam_Flow_withGRE$lme)$AIC))
+  out
 }
 
+stopCluster(cl)
+
 # store results
-save(Store_FwGRE,file="data/StoreFwGRE_TrendAnalysis.RData")
-pander(Store_FwGRE, caption="Mixed model results for analysis of trend in flow data taking into account Gridded Rainfall and Evapotranspiration")
+save(Store_FwGRE2,
+     file=paste(storedir,
+                "projectdata/StoreFwGRE2_TrendAnalysis.RData",
+                sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_FwGRE2), 
+                                function(i) rbind(Store_FwGRE2[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in flow data taking into account Gridded Rainfall and Evapotranspiration")
+rm(Store_FwGRE2)
 ```
 
 Now do the Mann-Kendall analysis on the residuals
@@ -462,7 +535,7 @@ Now do the Mann-Kendall analysis on the residuals
 # do mann kendall on the residuals
 resid_list <- vector("list", length=length(Stations[,1]))
 for (i in seq_along(Stations[,1])) {
-  resid_list[[i]] <- zoo(residuals(gam_Flow_withGRE[[i]]$lme,
+  resid_list[[i]] <- zoo(residuals(Store_FwGRE2[[i]]$model$lme,
                  type="normalized"),
                  order.by=as.Date(na.omit(subset(flow_rain_maxT_weekly,                                                   Station==Stations[i,1]))$Date))
 }
@@ -477,9 +550,12 @@ resid_temp <- as.data.frame(resid_df)
 resid_temp$years <- format(time(resid_df),"%Y")
 split_resid <- split(resid_temp[,1:13],resid_temp$years)
 
-MK_list <- list()
 
-for (i in 1:500) {
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+MK_list <- foreach(i = 1:500,
+                 .packages=c("Kendall","xts")) %dopar% {
   # reorganise the list elements
   series <- sample(1:nyears(resid_df),nyears(resid_df))
   for (j in 1:length(series)) {
@@ -492,8 +568,10 @@ for (i in 1:500) {
   # run mann kendall on the columns and store the results
   mk_r <- apply(new_df,2,MannKendall)
   
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
+  out <- do.call(cbind,mk_r)
+  out
+ }
+stopCluster(cl)
 
 MK_df <- do.call(rbind,MK_list)
 
