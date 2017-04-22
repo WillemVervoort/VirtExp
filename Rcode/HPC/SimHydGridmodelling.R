@@ -43,7 +43,7 @@ registerDoMC(cores=nc)
 # SCEOptim  function
 SCEfit <- function(mod) {
   fit.Q <- fitBySCE(mod,  objective=~hmadstat("viney")(Q, X),
-                    control=list(ncomplex=5))
+                    control=list(ncomplex=20))
   s <- summary(fit.Q)
   #rm(fit.Q)
   return(c(do.call(rbind,s[7:10])[,1],coef(fit.Q)))
