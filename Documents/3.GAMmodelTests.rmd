@@ -71,8 +71,9 @@ Store2 <- foreach(i = 1:length(Stations[,1]),
   gam_TrendOnly <- gls(log(Flow +1)~trend, correlation= corCAR1(),
        data=gamm.data)
   out <- list(model = gam_TrendOnly,
-              results = data.frame(Station=Stations[i,1],                                 t(summary(gam_TrendOnly)$tTable[2,c(1,4)]),
-                                   AIC=summary(gam_TrendOnly)$AIC))
+              results = data.frame(Station=Stations[i,1],
+              t(summary(gam_TrendOnly)$tTable[2,c(1,4)]),
+                   AIC=summary(gam_TrendOnly)$AIC))
   out
 }
 stopCluster(cl)
@@ -399,8 +400,7 @@ save(Store_FwRE2,
                 sep="/"))
 output <- do.call(rbind, lapply(1:length(Store_FwRE2), 
                                 function(i) rbind(Store_FwRE2[[i]][[2]])))
-pander(output, caption="Mixed model results for the analysis of flow data taking into account Rainfall and Evapotranspiratiion")
-rm(Store_FwRE2)
+pander(output, caption="Mixed model results for the analysis of flow data taking into account Rainfall and Evapotranspiration")
 ```
 
 Now do the Mann-Kendall analysis on the residuals
@@ -495,6 +495,7 @@ print(hp)
 dev.off()
 
 pander(real_df, caption="Mann Kendall results for the GAMM residuals, ref Figure 8")
+rm(Store_FwRE2)
 ```
 
 ## Gridded rainfall data   
@@ -527,7 +528,7 @@ save(Store_FwGRE2,
 output <- do.call(rbind, lapply(1:length(Store_FwGRE2), 
                                 function(i) rbind(Store_FwGRE2[[i]][[2]])))
 pander(output, caption="Mixed model results for analysis of trend in flow data taking into account Gridded Rainfall and Evapotranspiration")
-rm(Store_FwGRE2)
+
 ```
 
 Now do the Mann-Kendall analysis on the residuals
@@ -614,4 +615,5 @@ print(hp)
 
 
 pander(real_df, caption="Mann Kendall results for the GAMM residuals with gridded rainfall")
+rm(Store_FwGRE2)
 ```

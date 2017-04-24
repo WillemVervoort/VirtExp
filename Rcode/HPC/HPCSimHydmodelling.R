@@ -33,8 +33,6 @@ source(paste(rcode_dir,"Simhyd.R",sep="/"))
 
 # read in the data
 load("ClimCh_project_MD.Rdata")
-# load("GriddedRainfallData.Rdata")
-# GridRain <- output.z
 
 nc <- 10 # number of cores
 n <- 10 # number of SCE runs
@@ -139,7 +137,7 @@ for (i in seq_along(Stations[,1])) {
                       station = Stations[i,1], nr=n)
   save(Output,
        file = paste(Today,paste(Stations[i,1], 
-                                "CalibOutput.Rdata", sep=""),sep="_"))
+                                "SimhydCalibOutput.Rdata", sep=""),sep="_"))
   rm(Output)
 }
 
