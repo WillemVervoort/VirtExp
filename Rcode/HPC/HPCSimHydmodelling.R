@@ -126,7 +126,7 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
 
 
 # 3. Now run over the stations
-for (i in seq_along(Stations[,1])) {
+for (i in seq_along(Stations[1:7,1])) {
   #i <- 1 # testing
   # load(paste(Today,"CalibInputData.Rdata",sep="_"))
   # Create storage frames
