@@ -410,6 +410,7 @@ simhyd_eWater.sim <-
                               INSC, COEFF, SQ,SMSC, 
                               SUB,CRAK,K)
       U <- ans$U
+      aET <- ans$ET
       if (return_state==T) {
         aET <- ans$ET
         INR = ans$INR

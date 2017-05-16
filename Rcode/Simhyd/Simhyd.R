@@ -22,10 +22,10 @@
 # sourceCpp("/g/data1/rr9/wxv562/MD_ProjectRCode/Simhyd_eWater.cpp") # eWater and SOURCE version
 # sourceCpp("/g/data1/rr9/wxv562/MD_ProjectRCode/SimhydMJEq.cpp") # rewrite of Min Ju Shin's version
 
-sourceCpp("ProjectRCode/SimhydC2002.cpp") # Chiew et al. 2002
-sourceCpp("ProjectRCode/SimhydC2009.cpp") # Chiew et al. 2009 and Chiew 2006
-sourceCpp("ProjectRCode/Simhyd_eWater.cpp") # eWater and SOURCE version
-sourceCpp("ProjectRCode/SimhydMJEq.cpp") # rewrite of Min Ju Shin's version
+sourceCpp("SimhydC2002.cpp") # Chiew et al. 2002
+sourceCpp("SimhydC2009.cpp") # Chiew et al. 2009 and Chiew 2006
+sourceCpp("Simhyd_eWater.cpp") # eWater and SOURCE version
+sourceCpp("SimhydMJEq.cpp") # rewrite of Min Ju Shin's version
 
 
 
