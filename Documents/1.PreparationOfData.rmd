@@ -257,7 +257,28 @@ xyp_rain <- xyp_rain + geom_point() + facet_wrap(~Station)
 print(xyp_rain)
 ```
 
-Figure 1 shows that in general there is very little 1:1 agreement between the gridded and the station rainfall, but that is not that strange as it seems. The gridded rainfall is an interpolated surface based on several stations. A better way to compare the data is probably using a qqplot.
+\newpage  
+Figure 1 shows that in general there is very little 1:1 agreement between the gridded and the station rainfall, but that is not that strange as it seems. The gridded rainfall is an interpolated surface based on several stations.   
+To do another comparison, we should also compare the monthly data, just to check that we have actually extracted the right stations.
+
+```{r compare_monthly, fig.cap="comparison of monthly rainfall data between gridded and station data"}
+raingrid_zoo_m <- aggregate(output.z,as.yearmon,sum,na.rm=T)
+rain_zoo_m <- aggregate(rain_zoo,as.yearmon,sum,na.rm=T)
+MonthRain <- melt(as.data.frame(raingrid_zoo_m))
+colnames(MonthRain) <- c("Station","gridRain")
+MonthRain$Rain <- melt(as.data.frame(rain_zoo_m))[,2]
+
+xyp_rain_m <- ggplot(data=MonthRain,aes(x=Rain,  y=gridRain))
+xyp_rain_m <- xyp_rain_m + geom_point() + facet_wrap(~Station)
+print(xyp_rain_m)
+
+```
+
+That looks a little bit better, but there are clearly some issues with the gridded rainfall from the BOM.
+
+\newpage
+
+Another way to compare the data is probably using a qqplot.
 
 ```{r gridcompareqq, fig.cap="QQplot comparing gridded rainfall and station data"}
 # make a qqplot
@@ -279,7 +300,8 @@ xyp_rainqq <- xyp_rainqq + geom_abline(intercept = 0, slope = 1,
 print(xyp_rainqq)
 ```
 
-Figure 2 shows fairly good agreement across the distributions with only the high rainfall quantiles showing distinct deviations. This is logical as the gridded rainfall is a smoothed replica of the station data due to the interpolation.
+Figure 3 shows fairly good agreement across the distributions with only the high rainfall quantiles showing distinct deviations. This is logical as the gridded rainfall is a smoothed replica of the station data due to the interpolation.
+
 
 Another important characteristic of rainfall could be the memory,so it might be worth comparing autocorrelation graphs for the different series.
 
@@ -322,7 +344,9 @@ print(acfGrid)
 print(acfRain)
 ```
 
-This again shows little difference between the autocorrelation functions, with possibly the gridded rainfall (first graph, Figure 3) being slightly more auto-correlated than the station rainfall data (Second graph, Figure 4).
+\newpage
+
+This again shows little difference between the autocorrelation functions, with possibly the gridded rainfall (first graph, Figure 4) being slightly more auto-correlated than the station rainfall data (Second graph, Figure 5).
 
 ## Storage, combining and publishing data
 

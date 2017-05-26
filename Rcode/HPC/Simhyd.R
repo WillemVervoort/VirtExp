@@ -696,7 +696,7 @@ simhyd_MJeq.sim <- function (DATA, rainfallInterceptionStoreCapacity = 1.5, infi
 
 
 # Routing based on Muskinghum
-simhydrouting.sim <- function(U, DELAY=1, X_m=0.2, 
+simhydrouting.sim <- function(U, DELAY, X_m, 
                               epsilon = hydromad.getOption("sim.epsilon"),
                               return_components = FALSE) {
   X <- rep(0,length(U))
@@ -750,17 +750,17 @@ simhyd_C2009.ranges <- simhyd_C2002.ranges  <- function()
         etmult = c(0.01,1))
 
 simhydrouting.ranges <- function()
-  list( DELAY = c(0.1,5),
+  list( DELAY = c(0.1,10),
        X_m = c(0.01,0.5))
 
 
 simhyd_eWater.ranges <- function() 
   list(impTh = c(1,5),
        pFrac = c(0,1),
-       INSC = c(0,50),
-       COEFF = c(0.0,400),
+       INSC = c(0,200),
+       COEFF = c(0.0,200),
        SQ = c(0,10), 
-       SMSC = c(1,500),
+       SMSC = c(1,2000),
        SUB = c(0.0,1),
        CRAK = c(0.0,1),
        K = c(0.0,1),

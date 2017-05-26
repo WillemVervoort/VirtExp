@@ -4,12 +4,6 @@
 
 # GR4J modelling of the data
 
-# INPUT FILES:
-# - Flow data: […]_daily_ts2.csv […] = flow station number
-# - Rainfall data: IDCJAC0009_[…]_1800_Data.csv […] = rainfall station number
-# - MaxT data: […].csv […] = HQmaxT station number
-# - Flow station locations: Flow_station_locations.csv
-
 ##################
 ##  ~ Set up ~  ##
 ##################
@@ -39,7 +33,7 @@ registerDoMC(cores=nc)
 ## 1. Optimisation functions
 # SCEOptim  function
 SCEfit <- function(mod) {
-  fit.Q <- fitBySCE(mod,
+  fit.Q <- fitBySCE(mod,  objective=~hmadstat("viney")(Q, X),
                     control=list(ncomplex=20))
   s <- summary(fit.Q)
   #rm(fit.Q)
@@ -48,7 +42,7 @@ SCEfit <- function(mod) {
 
 # fitByOptim function
 Ofit <- function(mod,Store) {
-  bestFit <- fitByOptim(mod,
+  bestFit <- fitByOptim(mod,  objective=~hmadstat("viney")(Q, X),
                         samples = nrow(Store), sampletype = "all.combinations", 
                         initpars = Store[1:nrow(Store),5:9], multistart = T)   
   s <- summary(bestFit)
@@ -89,12 +83,11 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
     rb <- ifelse(abs(rb)>1,1,rb)
     return(rb)
   })
-  # # use Viney's objective function(includes Bias), 
-  # # see http://hydromad.catchment.org/#hydromad.stats
-  # hydromad.stats("viney" = function(Q, X, ...) {
-  #   hmadstat("r.squared")(Q, X, ...) -
-  #     5*(abs(log(1+hmadstat("rel.bias")(Q,X, ...)))^2.5)})
-  # 
+  # use Viney's objective function(includes Bias), 
+  # see http://hydromad.catchment.org/#hydromad.stats
+  hydromad.stats("viney" = function(Q, X, ...) {
+    hmadstat("r.squared")(Q, X, ...) -
+      5*(abs(log(1+hmadstat("rel.bias")(Q,X, ...)))^2.5)})
   
   # run SCE 10 times
   Store = foreach(j = 1:nr, .combine=rbind) %dopar%

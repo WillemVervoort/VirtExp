@@ -209,7 +209,7 @@ Store_FwR <- foreach(i = 1:length(Stations[,1]),
                                   correlation= corCAR1(), data=gamm.data)
   out <- list(model = gam_TrendFlow_withR,
               results = data.frame(Station=Stations[i,1],
-                            t(summary(gam_TrendFlow_withR$lme)$tTable[2,c(1,4)]),
+                            t(summary(gam_TrendFlow_withR$lme)$tTable[2,c(1,5)]),
                                    AIC=summary(gam_TrendFlow_withR$lme)$AIC))
   out
    }
@@ -251,7 +251,7 @@ Store_FwGR <- foreach(i = 1:length(Stations[,1]),
                                   correlation= corCAR1(), data=gamm.data)
   out <- list(model = gam_TrendFlow_withGR,
               results = data.frame(Station=Stations[i,1],
-                            t(summary(gam_TrendFlow_withGR$lme)$tTable[2,c(1,4)]),
+                            t(summary(gam_TrendFlow_withGR$lme)$tTable[2,c(1,5)]),
                                    AIC=summary(gam_TrendFlow_withGR$lme)$AIC))
   out
    }
@@ -298,7 +298,7 @@ Store_FwRE <- foreach(i = 1:length(Stations[,1]),
                                        data=gamm.data, control=list(niterEM=0))
   out <- list(model = gam_TrendFlow_withRandE,
         results = data.frame(Station=Stations[i,1],
-                      t(summary(gam_TrendFlow_withRandE$lme)$tTable[2,c(1,4)]),
+                      t(summary(gam_TrendFlow_withRandE$lme)$tTable[2,c(1,5)]),
                             AIC=summary(gam_TrendFlow_withRandE$lme)$AIC))
   out
  }
@@ -324,7 +324,9 @@ pander(output, caption="Mixed model results for the analysis of trend in flow da
 rm(Store_FwRE)
 ```
 
-## Gridded rainfall data  
+## Gridded rainfall data
+
+The gridded rainfall data for some reason is slightly more complex and creates minor problems with fitting using GAMM. The difficulty is in setting k, which determines the flexibility of the smooths. The default value is k = -1 which allows the optimisation to set the smooths, but for R > 3.4.0 and updated package mgcv (20/05/2017) this fails. Setting k = 10 (which should be more than flexible enough) allows the models to run. This should not influence the results.
 
 ```{r model4b, fig.cap="Residuals of GAMM analysis for trend in flow data removing gridded rainfall and evapotranspiration effects"}
 # run the gamm model on gridded rain, maxT and flow
@@ -333,16 +335,25 @@ registerDoParallel(cl) # register the cluster
 # use a foreach loop to calibrate
 Store_FwGRE <- foreach(i = 1:length(Stations[,1]),
                  .packages="mgcv") %dopar% {
+#  out <- list()                 
+#for (i in 1:length(Stations[,1])) {                  
   gamm.data <- subset(weekGridRainAllDataout,
                       weekGridRainAllDataout$Station == Stations[i,1])
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendFlow_withGRE <- gamm(log(Flow +1)~s(gridRain) + s(gridRain,MaxT) +
-                                       trend, correlation= corCAR1(),
-                                     data=gamm.data, control=list(niterEM=5))
+  # need to set k is 10 (large enough), as it cannot be default k=-1 
+  # due to missing data. This is for R > 3.4.0
+  # unclear, runs with k= -1 in R 3.3.0
+  gam_TrendFlow_withGRE <- gamm(log(Flow +1) ~ 
+                                s(gridRain,k=10) +
+                                s(gridRain,MaxT, k=10) + 
+                                trend,
+                                correlation= corCAR1(),
+                                data=gamm.data,
+                                control=list(niterEM=5))
   out <- list(model = gam_TrendFlow_withGRE,
         results = data.frame(Station=Stations[i,1],
-                      t(summary(gam_TrendFlow_withGRE$lme)$tTable[2,c(1,4)]),
-                            AIC=summary(gam_TrendFlow_withGRE$lme)$AIC))
+       t(summary(gam_TrendFlow_withGRE$lme)$tTable[2,c(1,5)]),
+       AIC=summary(gam_TrendFlow_withGRE$lme)$AIC))
   out
 }
 stopCluster(cl)
@@ -499,7 +510,9 @@ rm(Store_FwRE2)
 ```
 
 ## Gridded rainfall data   
-Do the same for the gridded rainfall data  
+Do the same for the gridded rainfall data
+See the comments with model 4b with regard to setting the parameter k. Kept this consistent between model 4b and 5b.
+
 ```{r model5b, fig.cap="Residuals of GAMM analysis of flow data removing gridded rainfall and evapotranspiration effects"}
 # run the gamm model on rain, maxT and flow
 cl <- makeCluster(4) # create a cluster with 4 cores
@@ -509,9 +522,12 @@ Store_FwGRE2 <- foreach(i = 1:length(Stations[,1]),
                  .packages="mgcv") %dopar% {  
   gamm.data <- subset(weekGridRainAllDataout,
                       weekGridRainAllDataout$Station == Stations[i,1])
-  gam_Flow_withGRE <- gamm(log(Flow +1)~s(gridRain) + s(gridRain,MaxT),
-                                     correlation= corCAR1(), data=gamm.data,
-                                     control=list(niterEM=5))
+  gam_Flow_withGRE <- gamm(log(Flow +1) ~ 
+                             s(gridRain, k=10) +
+                             s(gridRain,MaxT, k=10),
+                             correlation= corCAR1(),
+                             data=gamm.data,
+                             control=list(niterEM=5))
   out <- list(model = gam_Flow_withGRE,
         results = data.frame(Station=Stations[i,1],
                             AIC=summary(gam_Flow_withGRE$lme)$AIC))

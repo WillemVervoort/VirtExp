@@ -1,0 +1,388 @@
+---
+title: "Analysis of Monthly HPC results"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document:
+      fig_width: 7
+      fig_height: 6
+      fig_caption: true
+---
+```{r setup, warning=F, message=F}
+# root dir
+knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_chunk$set(echo = TRUE)
+# LOAD REQUIRED PACKAGES # #####
+library(pander)
+library(tidyverse)
+library(xts)
+library(zoo)
+library(ggplot2)
+library(reshape2)
+library(Rcpp)
+library(hydromad)
+```
+
+This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository.
+
+# Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology. This is the 9^th^ part of the series that analyses the monthly results from the GR4J and SimHyd model fitting on the High Performance computer Artemis at the University of Sydney. 
+
+This is a coomparison to part 6 of the series in which the daily data were analysed and also a comparison to the original Chiew (2006) paper that was based on monthly data.
+
+In particular, this part extracts the best parameters of the modelling, plots the performance distributions and extracts the residuals to be analysed in a further script using Mann Kendall (this is separated because this takes quite long to run). Finally a comparison between the non-parametric epsilon (sensitivity) and the model based epsilon is plotted for both gridded and non-gridded rainfall. 
+
+To recap, we have 2 different High Performance Computing monthly results for each of the 13 catchments. The two models (GR4J and SimHyd) were fitted to monhtly data for 10 years of climate data (1970 - 1980). Here we are only using the station data and not using the gridded data.
+
+The model fitting is based on the shuffled complex evolution optimisation in Hydromad as described in more detail in the paper. Essentially the model was fitted 10 times using the `FitBySCE()` function in the [Hydromad](http://hydromad.cacthment.org) package. The scripts related to the high performance computing and the HPC scripts are stored in the Rcode/HPC folder. However, in contrast to the daily modelling, this analysis cannot run use Viney's objective function as this does not work on the monthly data, so the monthly fit are (also following Chiew, 2006) based on fitting to the Nash Sutcliffe Efficiency (NSE), which in hydromad is `~hmadstat("r.squared")`, as explained in the hydromad helpfile for `hmadstat()` and on the website.  
+
+The HPC results are not stored on Github, as the files are too large, but are stored in the [Cloudstor data directory](http://insert.a.link).
+
+# 1. Load basic data and define  storage
+This loads all the basic climate data and the catchment characteristics.  
+It also compiles the SimHyd model code.
+
+```{r loadDataAndSimHyd}
+load("../projectData/MonthlyDataOut.Rdata")
+flow_zoo_m <- dataOut_Month[[1]]
+rain_zoo_m <- dataOut_Month[[2]]
+maxT_zoo_m <- dataOut_Month[[3]]
+flow_rain_maxT_monthly <-dataOut_Month[[4]]
+Stations <- read.csv("Data/CatchmentCharact.csv")
+
+# compile SimHyd
+rcode_dir <- paste(getwd(),"RCode/HPC",sep="/")
+source(paste(rcode_dir,"Simhyd.r",sep="/"))
+```
+
+Define the beginning and end date for the modelling  
+```{r dates}
+start.date <- "Jan 1981"
+end.date <- "Dec 2010"
+```
+
+As a first step define storage for the results of the modelling. These will get renamed for each of the individual modelling results
+
+```{r defineStore}
+sum_Res <- list()
+Chiew_Res <- list()
+
+mod_Res <- list()
+
+Chiew <- data.frame(station=character(length=10),eta_p=numeric(length=10),
+                    eta_e=numeric(length=10),pvalue_eta_p=numeric(length=10),
+                    pvalue_eta_e=numeric(length=10))
+
+Results <- data.frame(station=character(length=10),
+                      Mod.r.sq=numeric(length=10), 
+                      Mod.bias=numeric(length=10))
+
+Residuals <- list()
+
+# some other auxillary data frames
+pred_results <- data.frame(Pmin15ET0=numeric(length=nrow(flow_zoo_m)),
+                               Pmin10ET0=numeric(length=nrow(flow_zoo_m)),
+                               P0ET0=numeric(length=nrow(flow_zoo_m)),
+                               Pplus10ET0=numeric(length=nrow(flow_zoo_m)),
+                               Pmin15ETplus5=numeric(length=nrow(flow_zoo_m)),
+                               Pmin10ETplus5=numeric(length=nrow(flow_zoo_m)),
+                               P0ETplus5=numeric(length=nrow(flow_zoo_m)),
+                               Pplus10ETplus5=numeric(length=nrow(flow_zoo_m)),
+                               Pmin15ETplus10=numeric(length=nrow(flow_zoo_m)),
+                               Pmin10ETplus10=numeric(length=nrow(flow_zoo_m)), 
+                               P0ETplus10=numeric(length=nrow(flow_zoo_m)),
+                               Pplus10ETplus10=numeric(length=nrow(flow_zoo_m)))
+
+```
+
+# 2. GR4J model results with station rainfall  
+
+Extract the modelling results, rerun the model, do the Chiew (2006) amplification analysis and write away the results.  
+
+```{r GR4Jmodelling}
+# find the list of files with GR4J results
+filelist <- dir("../Projectdata/HPCResults/Monthly", 
+                pattern = "GR4JMonthCalibOutput")
+
+for (i in seq_along(filelist)) {
+  #i <- 1
+  # load the rainfall, ET and flow data
+  pred_data <- merge(flow_zoo_m[,i], rain_zoo_m[,i], maxT_zoo_m[,i])
+  pred_data <- pred_data[time(pred_data) >= start.date & 
+                           time(pred_data) <= end.date,]
+  colnames(pred_data) <- c("Q","P","E")
+  # # another storage data frame for the residuals
+  resid_out <- data.frame(matrix(0,ncol=10,nrow=nrow(pred_data)))
+  # load the relevant output
+  load(paste("../Projectdata/HPCResults/monthly/",
+             filelist[grep(Stations[i,1],filelist)],sep=""))
+  # extract the model and update with the parameters
+  Mod <- Output$mod
+  
+  mod_Res[[i]] <- Output$Store
+  Chiew[,1] <- Stations[i,1]
+  Results[,1] <- Stations[i,1]
+  
+  
+  # run through all iterations
+  for (j in 1:(nrow(Output$Store))) {
+    # testing
+    #j <- 1
+    # update the model with the final fitted parameters, for each iteration
+    Mod <- update(Mod, x1=Output$Store[j,8],x2=Output$Store[j,5],
+                  x3=Output$Store[j,6],x4=Output$Store[j,7],
+                  etmult=Output$Store[j,9],
+                  return_state=F)
+    
+
+    # now predict the model output and use pred_data
+    pred_mod <- predict(Mod,newdata=pred_data, all=T,na.rm=F)
+
+    # store the residuals
+    resid_out[,j] <- pred_data$Q-pred_mod
+    
+    Results[j,2:3] <- c(summary(Mod)$r.squared,summary(Mod)$rel.bias)
+    
+    # Now run the Chiew 2006 simulations on all the data
+    mu <- cbind(rep(c(-15,-10,0,10),3),c(rep(0,4),rep(5,4),rep(10,4)))
+    # Create the precipitation and ET data variations
+    # station data
+    RAIN <- rain_zoo_m
+    test <- list()
+    for (k in 1:nrow(mu)) {
+      temp <- as.data.frame(cbind((1+mu[k,1]/100)*RAIN[,i],
+                             (1+mu[k,2]/100)*maxT_zoo_m[,i]))
+      test[[k]] <- do.call(cbind,apply(temp,2,function(x) aggregate(x,
+                        list(year=format(time(flow_zoo_m),"%Y")),sum,na.rm=T)))
+      test[[k]] <- test[[k]][,-3]
+    }
+    clim_adj <- do.call(rbind,test)
+    
+    # now run the different pred results
+    for (k in 1:ncol(pred_results)) {
+      # run the model over all data
+      pred_data2 <- window(merge(flow_zoo_m[,i], 
+                                 (1+mu[k,1]/100)*RAIN[,i], 
+                                 (1+mu[k,2]/100)*maxT_zoo_m[,i]))
+      colnames(pred_data2) <- c("Q","P","E")
+      
+      pred_results[,k] <- predict(Mod,newdata=pred_data2, all=T,na.rm=F)
+    }
+    # summarise the data annually
+    pred_ann <- apply(pred_results,2,
+              function(x) aggregate(x,list(year=format(time(flow_zoo_m),"%Y")),
+                                            sum,na.rm=T))
+    ann_flow <- rep(pred_ann[[1]][,2],6)
+    pred_t <- do.call(rbind,pred_ann)
+    # Now add the ET and precipitation data
+    pred_ann <- data.frame(pred_t,rain=clim_adj[,2],maxT=clim_adj[,3])
+    # summarise base rain and temp
+    ann_rain <- rep(aggregate(RAIN[,i],list(year=format(time(flow_zoo_m),"%Y")),
+                              sum,na.rm=T),6)
+    ann_maxT <- rep(aggregate(maxT_zoo_m[,i],
+                              list(year=format(time(flow_zoo_m),"%Y")),
+                              sum,na.rm=T),6)
+
+    # Now calculate the difference
+    pred_diff <- pred_ann
+    pred_diff[,2] <- pred_diff[,2] - ann_flow
+    pred_diff[,3] <- pred_diff[,3] - ann_rain
+    pred_diff[,4] <- pred_diff[,4] - ann_maxT
+    # Now fit a linear model (least squares (Chiew, 2006))
+    fit <- lm(x~rain + maxT,data=pred_diff)
+    # store the results
+    Chiew[j,2:5] <- c(coef(fit)[2:3],summary(fit)$coefficients[2:3,4])
+
+  }
+  Chiew_Res[[i]] <- Chiew
+  sum_Res[[i]] <- Results
+  Residuals[[i]] <- resid_out
+}
+```
+
+We can now temporary write away the results and the residuals and make some initial plots. Further plots will be generated later when comparing to the non-parametric epsilon ($\epsilon$).  
+
+```{r StoreGR4J, fig.cap="Calibration results for the GR4J model across 10 iterations using station rainfall data."}
+# write away the results
+OutputTrends <- do.call(rbind,sum_Res)
+write.csv(OutputTrends,
+          file="../ProjectData/MonthlyGR4JHPC_modelperformance.csv",
+          row.names=F)
+
+OutputChiew <- do.call(rbind,Chiew_Res)
+write.csv(OutputChiew,file="../ProjectData/MonthlyGR4JHPC_ChiewAnalysis.csv",
+          row.names=F)
+
+pander(OutputChiew, caption="Results GR4J epsilon fit with significance")
+
+save(Residuals,file="../ProjectData/residuals/MonthlyGR4JHPCresiduals.Rdata")
+
+OutputMod_GR4J <- do.call(rbind,mod_Res)
+save(OutputMod_GR4J,file="../ProjectData/MonthlyGR4JHPCModelResults.Rdata")
+
+OutputMod_GR4J <- OutputMod_GR4J[,c(1:4,ncol(OutputMod_GR4J))]
+
+OutputMod_GR4J$model <- "MonthlyGR4J"
+
+p <- ggplot(OutputMod_GR4J,aes(station,r.squared)) +  geom_boxplot()
+p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
+                      size=5,aes(col=rel.bias))
+print(p)
+```
+
+# 4. SimHyd model results with station rainfall  
+
+Extract the modelling results from the SimHyd model, rerun the model, do the Chiew (2006) amplification analysis and write away the results.  
+
+```{r SimHydmodelling}
+# find the list of files with SimHyd results
+filelist <- dir("../Projectdata/HPCResults/monthly/", 
+                pattern = "SimhydMonthCalibOutput")
+
+for (i in seq_along(Stations[,1])) {
+  # load the rainfall, ET and flow data
+  pred_data <- merge(flow_zoo_m[,i], rain_zoo_m[,i], maxT_zoo_m[,i])
+  pred_data <- pred_data[time(pred_data) >= start.date & 
+                           time(pred_data) <= end.date,]
+  colnames(pred_data) <- c("Q","P","E")
+  # # another storage data frame for the residuals
+  resid_out <- data.frame(matrix(0,ncol=10,nrow=nrow(pred_data)))
+  # load the relevant output
+  load(paste("../Projectdata/HPCResults/monthly/",
+             filelist[grep(Stations[i,1],filelist)],sep=""))
+  # extract the model and update with the parameters
+  Mod <- Output$mod
+  
+  mod_Res[[i]] <- Output$Store
+  Chiew[,1] <- Stations[i,1]
+  Results[,1] <- Stations[i,1]
+  
+  
+  # run through all iterations
+  for (j in 1:(nrow(Output$Store))) {
+    # testing
+    #j <- 1
+    # update the model with the final fitted parameters, for each iteration
+    Mod <- update(Mod, INSC=Output$Store[j,7],COEFF=Output$Store[j,8],
+                      SQ=Output$Store[j,9],SMSC=Output$Store[j,10],
+                      SUB=Output$Store[j,11],CRAK=Output$Store[j,12],
+                      K=Output$Store[j,13],
+                    etmult=Output$Store[j,14], DELAY=Output$Store[j,5],
+                    X_m = Output$Store[j,6],
+                  return_state=F)
+    
+
+    # now predict the model output and use pred_data
+    pred_mod <- predict(Mod,newdata=pred_data, all=T,na.rm=F)
+
+    # store the residuals
+    resid_out[,j] <- pred_data$Q-pred_mod
+    
+    Results[j,2:3] <- c(summary(Mod)$r.squared,summary(Mod)$rel.bias)
+    
+    # Now run the Chiew 2006 simulations on all the data
+    mu <- cbind(rep(c(-15,-10,0,10),3),c(rep(0,4),rep(5,4),rep(10,4)))
+    # Create the precipitation and ET data variations
+    # station data
+    RAIN <- rain_zoo_m
+    test <- list()
+    for (k in 1:nrow(mu)) {
+      temp <- as.data.frame(cbind((1+mu[k,1]/100)*RAIN[,i],
+                             (1+mu[k,2]/100)*maxT_zoo_m[,i]))
+      test[[k]] <- do.call(cbind,apply(temp,2,function(x) aggregate(x,
+                        list(year=format(time(flow_zoo_m),"%Y")),sum,na.rm=T)))
+      test[[k]] <- test[[k]][,-3]
+    }
+    clim_adj <- do.call(rbind,test)
+    
+    # now run the different pred results
+    for (k in 1:ncol(pred_results)) {
+      # run the model over all data
+      pred_data2 <- window(merge(flow_zoo_m[,i], 
+                                 (1+mu[k,1]/100)*RAIN[,i], 
+                                 (1+mu[k,2]/100)*maxT_zoo_m[,i]))
+      colnames(pred_data2) <- c("Q","P","E")
+      
+      pred_results[,k] <- predict(Mod,newdata=pred_data2, all=T,na.rm=F)
+    }
+    # summarise the data annually
+    pred_ann <- apply(pred_results,2,
+              function(x) aggregate(x,list(year=format(time(flow_zoo_m),"%Y")),
+                                            sum,na.rm=T))
+    ann_flow <- rep(pred_ann[[1]][,2],6)
+    pred_t <- do.call(rbind,pred_ann)
+    # Now add the ET and precipitation data
+    pred_ann <- data.frame(pred_t,rain=clim_adj[,2],maxT=clim_adj[,3])
+    # summarise base rain and temp
+    ann_rain <- rep(aggregate(RAIN[,i],list(year=format(time(flow_zoo_m),"%Y")),
+                              sum,na.rm=T),6)
+    ann_maxT <- rep(aggregate(maxT_zoo_m[,i],
+                              list(year=format(time(flow_zoo_m),"%Y")),
+                              sum,na.rm=T),6)
+
+    # Now calculate the difference
+    pred_diff <- pred_ann
+    pred_diff[,2] <- pred_diff[,2] - ann_flow
+    pred_diff[,3] <- pred_diff[,3] - ann_rain
+    pred_diff[,4] <- pred_diff[,4] - ann_maxT
+    # Now fit a linear model (least squares (Chiew, 2006))
+    fit <- lm(x~rain + maxT,data=pred_diff)
+    # store the results
+    Chiew[j,2:5] <- c(coef(fit)[2:3],summary(fit)$coefficients[2:3,4])
+    
+    
+  }
+  Chiew_Res[[i]] <- Chiew
+  sum_Res[[i]] <- Results
+  Residuals[[i]] <- resid_out
+}
+```
+
+We can now temporary write away the results and the residuals and make some initial plots. Further plots will be generated later when comparing to the non-parametric epsilon ($\epsilon$).  
+
+```{r StoreSimHyd, fig.cap="Calibration results for the SimHyd model across 10 iterations using station rainfall data."}
+# write away the results
+OutputTrends <- do.call(rbind,sum_Res)
+write.csv(OutputTrends,
+          file="../ProjectData/MonthlySimHydHPC_modelperformance.csv",
+          row.names=F)
+
+OutputChiew <- do.call(rbind,Chiew_Res)
+write.csv(OutputChiew,
+          file="../ProjectData/MonthlySimHydHPC_ChiewAnalysis.csv",
+          row.names=F)
+pander(OutputChiew, caption="Results Simhyd epsilon fit with significance")
+
+save(Residuals,
+     file="../ProjectData/residuals/MonthlySimHydHPCresiduals.Rdata")
+
+OutputMod_SimHyd <- do.call(rbind,mod_Res)
+save(OutputMod_SimHyd,
+     file="../ProjectData/MonthlySimHydHPCModelResults.Rdata")
+
+OutputMod_SimHyd <- OutputMod_SimHyd[,c(1:4,ncol(OutputMod_SimHyd))]
+OutputMod_SimHyd$model <- "MonthlySimHydStationData"
+
+p <- ggplot(OutputMod_SimHyd,aes(station,r.squared)) +  geom_boxplot()
+p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
+                      size=5,aes(col=rel.bias))
+print(p)
+```
+
+
+# 6. Final plot comparing performance of all models
+
+```{r FinalPerformancePlot, fig.cap="Comparing the performance of different models"}
+
+OutputMod <- rbind(OutputMod_GR4J, OutputMod_SimHyd)
+p <- ggplot(OutputMod,aes(station,r.squared)) +  geom_boxplot()
+p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
+                      size=5,aes(colour=rel.bias))
+p <- p + facet_wrap(~model)
+print(p)
+
+# Write away the data
+save(OutputMod,file="../ProjectData/MonthlyModelResults.Rdata")
+
+```
+

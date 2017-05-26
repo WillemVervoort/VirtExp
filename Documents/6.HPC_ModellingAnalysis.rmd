@@ -75,7 +75,8 @@ Chiew_Res <- list()
 mod_Res <- list()
 
 Chiew <- data.frame(station=character(length=10),eta_p=numeric(length=10),
-                    eta_e=numeric(length=10))
+                    eta_e=numeric(length=10),pvalue_eta_p=numeric(length=10),
+                    pvalue_eta_e=numeric(length=10))
 
 Results <- data.frame(station=character(length=10),
                       Mod.r.sq=numeric(length=10), 
@@ -116,7 +117,8 @@ for (i in seq_along(filelist)) {
   # # another storage data frame for the residuals
   resid_out <- data.frame(matrix(0,ncol=10,nrow=nrow(pred_data)))
   # load the relevant output
-  load(paste("../Projectdata/HPCResults/",filelist[i],sep=""))
+  load(paste("../Projectdata/HPCResults/",
+             filelist[grep(Stations[i,1],filelist)],sep=""))
   # extract the model and update with the parameters
   Mod <- Output$mod
   
@@ -192,7 +194,7 @@ for (i in seq_along(filelist)) {
     # Now fit a linear model (least squares (Chiew, 2006))
     fit <- lm(x~rain + maxT,data=pred_diff)
     # store the results
-    Chiew[j,2:3] <- coef(fit)[2:3]
+    Chiew[j,2:5] <- c(coef(fit)[2:3],summary(fit)$coefficients[2:3,4])
     
     
   }
@@ -214,6 +216,9 @@ write.csv(OutputTrends,
 OutputChiew <- do.call(rbind,Chiew_Res)
 write.csv(OutputChiew,file="../ProjectData/GR4JHPC_ChiewAnalysis.csv",
           row.names=F)
+pander(aggregate(OutputChiew[,2:5],list(Station=OutputChiew$station),
+                 mean), 
+       caption="Results GR4J epsilon fit with significance")
 
 save(Residuals,file="../ProjectData/residuals/GR4JHPCresiduals.Rdata")
 
@@ -246,7 +251,8 @@ for (i in seq_along(filelist)) {
   # # another storage data frame for the residuals
   resid_out <- data.frame(matrix(0,ncol=10,nrow=nrow(pred_data)))
   # load the relevant output
-  load(paste("../Projectdata/HPCResults/",filelist[i],sep=""))
+  load(paste("../Projectdata/HPCResults/",
+             filelist[grep(Stations[i,1],filelist)],sep=""))
   # extract the model and update with the parameters
   Mod <- Output$mod
   
@@ -322,7 +328,7 @@ for (i in seq_along(filelist)) {
     # Now fit a linear model (least squares (Chiew, 2006))
     fit <- lm(x~rain + maxT,data=pred_diff)
     # store the results
-    Chiew[j,2:3] <- coef(fit)[2:3]
+    Chiew[j,2:5] <- c(coef(fit)[2:3],summary(fit)$coefficients[2:3,4])
     
     
   }
@@ -344,6 +350,9 @@ write.csv(OutputTrends,
 OutputChiew <- do.call(rbind,Chiew_Res)
 write.csv(OutputChiew,file="../ProjectData/GR4JGridHPC_ChiewAnalysis.csv",
           row.names=F)
+pander(aggregate(OutputChiew[,2:5],list(Station=OutputChiew$station),
+                 mean), 
+       caption="Results GR4JGrid epsilon fit with significance")
 
 save(Residuals,file="../ProjectData/residuals/GR4JGridHPCresiduals.Rdata")
 
@@ -365,7 +374,7 @@ Extract the modelling results from the SimHyd model, rerun the model, do the Chi
 
 ```{r SimHydmodelling}
 # find the list of files with SimHyd results
-filelist <- dir("../Projectdata/HPCResults", pattern = "SimhydCalibOutput")
+filelist <- dir("../Projectdata/HPCResults", pattern = "SimhydCalibOutput")[1:13]
 
 for (i in seq_along(Stations[,1])) {
   # load the rainfall, ET and flow data
@@ -375,7 +384,8 @@ for (i in seq_along(Stations[,1])) {
   # # another storage data frame for the residuals
   resid_out <- data.frame(matrix(0,ncol=10,nrow=nrow(pred_data)))
   # load the relevant output
-  load(paste("../Projectdata/HPCResults/",filelist[i],sep=""))
+  load(paste("../Projectdata/HPCResults/",
+             filelist[grep(Stations[i,1],filelist)],sep=""))
   # extract the model and update with the parameters
   Mod <- Output$mod
   
@@ -454,7 +464,7 @@ for (i in seq_along(Stations[,1])) {
     # Now fit a linear model (least squares (Chiew, 2006))
     fit <- lm(x~rain + maxT,data=pred_diff)
     # store the results
-    Chiew[j,2:3] <- coef(fit)[2:3]
+    Chiew[j,2:5] <- c(coef(fit)[2:3],summary(fit)$coefficients[2:3,4])
     
     
   }
@@ -476,6 +486,9 @@ write.csv(OutputTrends,
 OutputChiew <- do.call(rbind,Chiew_Res)
 write.csv(OutputChiew,file="../ProjectData/SimHydHPC_ChiewAnalysis.csv",
           row.names=F)
+pander(aggregate(OutputChiew[,2:5],list(Station=OutputChiew$station),
+                 mean), 
+       caption="Results SimHyd epsilon fit with significance")
 
 save(Residuals,file="../ProjectData/residuals/SimHydHPCresiduals.Rdata")
 
@@ -507,7 +520,8 @@ for (i in seq_along(filelist)) {
   # # another storage data frame for the residuals
   resid_out <- data.frame(matrix(0,ncol=10,nrow=nrow(pred_data)))
   # load the relevant output
-  load(paste("../Projectdata/HPCResults/",filelist[i],sep=""))
+  load(paste("../Projectdata/HPCResults/",
+             filelist[grep(Stations[i,1],filelist)],sep=""))
   # extract the model and update with the parameters
   Mod <- Output$mod
   
@@ -586,7 +600,7 @@ for (i in seq_along(filelist)) {
     # Now fit a linear model (least squares (Chiew, 2006))
     fit <- lm(x~rain + maxT,data=pred_diff)
     # store the results
-    Chiew[j,2:3] <- coef(fit)[2:3]
+    Chiew[j,2:5] <- c(coef(fit)[2:3],summary(fit)$coefficients[2:3,4])
     
     
   }
@@ -606,8 +620,13 @@ write.csv(OutputTrends,
           row.names=F)
 
 OutputChiew <- do.call(rbind,Chiew_Res)
-write.csv(OutputChiew,file="../ProjectData/SimHydGridHPC_ChiewAnalysis.csv",
+write.csv(OutputChiew,
+          file="../ProjectData/SimHydGridHPC_ChiewAnalysis.csv",
           row.names=F)
+pander(aggregate(OutputChiew[,2:5],list(Station=OutputChiew$station),
+                 mean), 
+       caption="Results SimHydGrid epsilon fit with significance")
+
 
 save(Residuals,file="../ProjectData/residuals/SimHydGridHPCresiduals.Rdata")
 

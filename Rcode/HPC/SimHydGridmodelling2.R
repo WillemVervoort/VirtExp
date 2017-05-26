@@ -82,8 +82,8 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
   # Define the model
   mod.Q <- hydromad(DATA=data.cal,
                     sma="simhyd_eWater", routing="simhydrouting",
-                    COEFF=200, SQ=1.5, 
-                    K=0.3, return_state=TRUE)
+                    COEFF=c(0,400), SQ=c(0.1,5), 
+                    K=c(0,1), return_state=TRUE)
   
   # Change hmadstat("rel.bias")
   hydromad.stats("rel.bias" = function(Q, X, ...) {
