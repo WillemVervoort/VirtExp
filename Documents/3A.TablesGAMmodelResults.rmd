@@ -49,14 +49,10 @@ Rain <- do.call(rbind, lapply(1:length(Store_Rain),
 Table4 <- data.frame(Station = Flow$Station, 
                      Qtrend = Flow$Value, Qpvalue = Flow$p.value,
                      Q_mm_year = ifelse(Flow$p.value < 0.1,
-                                        ifelse(Flow$Value < 1,
-                                        -(exp(abs(Flow$Value))-1)*52,
-                                        (exp(Flow$Value)-1)*52),NA),
+                                        (exp(Flow$Value)-1)*52,NA),
                      Ptrend = Rain$Value, Ppvalue = Rain$p.value,
                      P_mm_year = ifelse(Rain$p.value < 0.1,
-                                        ifelse(Rain$Value < 1,
-                                        -(exp(abs(Rain$Value))-1)*52,
-                                        (exp(Rain$Value)*52)-1), NA))
+                                        (exp(Rain$Value)-1)*52,NA))
 # now save the table as a csv file
 write.csv(Table4, "../projectdata/Table4.csv")
 # show table
@@ -78,9 +74,7 @@ Flow <- do.call(rbind, lapply(1:length(Store_FwR),
 Table5 <- data.frame(Station = Flow$Station, AIC = Flow$AIC,
                      Qtrend = Flow$Value, Qpvalue = Flow$p.value,
                      Q_mm_year = ifelse(Flow$p.value < 0.1,
-                                        ifelse(Flow$Value < 1,
-                                        -(exp(abs(Flow$Value))-1)*52,
-                                        (exp(Flow$Value)-1)*52),NA))
+                                    (exp(Flow$Value)-1)*52,NA))
 # now save the table as a csv file
 write.csv(Table5, "../projectdata/Table5.csv")
 # show table
@@ -96,32 +90,30 @@ load("../projectdata/StoreFwRE_TrendAnalysis.RData")
 
 Flow_m4 <- do.call(rbind, lapply(1:length(Store_FwRE), 
                           function(i) rbind(Store_FwRE[[i]][[2]])))
+
 # read in the results of model 5 (a data frame called Store_FwRE2)
 load("../projectdata/StoreFwRE_Analysis.RData")
-Flow_m5 <- do.call(rbind, lapply(1:length(Store_FwRE2), 
-                        function(i) rbind(Store_FwRE2[[i]][[2]])))
 
-# do mk analysis on residuals
-resid_list <- vector("list", length=length(Stations[,1]))
-for (i in seq_along(Stations[,1])) {
-  resid_list[[i]] <- zoo(residuals(Store_FwRE2[[i]]$model$lme,
-                 type="normalized"),
-                 order.by=as.Date(na.omit(subset(flow_rain_maxT_weekly,                                                   Station==Stations[i,1]))$Date))
-}
-MK_resid <- do.call(rbind,lapply(resid_list,MannKendall))
+Flow_m5 <- do.call(rbind, lapply(1:length(Store_FwRE2),
+                          function(i) rbind(Store_FwRE2[[i]][[2]])))
+# load "real_df" with results Mann-Kendall for Model 5
+load("../projectdata/MKResidGAM_MDPaper.Rdata")
 
 
 
 # create a data frame that combines the relevant columns
 # if p.value < 0.1 do not calculate the annual trend
-Table5 <- data.frame(Station = Flow$Station, AIC = Flow$AIC,
-                     Qtrend = Flow$Value, Qpvalue = Flow$p.value,
-                     Q_mm_year = ifelse(Flow$p.value < 0.1,
-                                        ifelse(Flow$Value < 1,
-                                        -(exp(abs(Flow$Value))-1)*52,
-                                        (exp(Flow$Value)-1)*52),NA))
+Table6 <- data.frame(Station = Flow_m4$Station, AIC = Flow_m4$AIC,
+                     Qtrend = Flow_m4$Value, 
+                     Qpvalue = Flow_m4$p.value,
+                     Q_mm_year = ifelse(Flow_m4$p.value < 0.1,
+                                 (exp(Flow_m4$Value)-1)*52,NA),
+                     AIC_5 = Flow_m5$AIC,
+                     MK_tau = real_df$tau,
+                     MK_pvalue = real_df$pvalue)
+
 # now save the table as a csv file
-write.csv(Table5, "../projectdata/Table5.csv")
+write.csv(Table6, "../projectdata/Table6.csv")
 # show table
-pander(Table5, caption = "This is Table 5 in the manuscript")
+pander(Table6, caption = "This is Table 6 in the manuscript")
 ```
