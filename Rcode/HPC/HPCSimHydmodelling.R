@@ -19,7 +19,7 @@ Today <- format(Sys.Date(),"%Y%m%d")
 
 #####
 # LOAD REQUIRED PACKAGES # #####
-require(ggplot2)
+#require(ggplot2)
 require(hydromad)
 require(Rcpp)
 # doMC only runs under Linux
@@ -126,8 +126,8 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
 
 
 # 3. Now run over the stations
-for (i in 1:7) {
-  #i <- 1 # testing
+#for (i in 1:7) {
+  i <- 8 # testing
   # load(paste(Today,"CalibInputData.Rdata",sep="_"))
   # Create storage frames
   # Run the calibration												
@@ -139,7 +139,7 @@ for (i in 1:7) {
        file = paste(Today,paste(Stations[i,1], 
                                 "SimhydCalibOutput.Rdata", sep=""),sep="_"))
   rm(Output)
-}
+#}
 
 
 

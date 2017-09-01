@@ -19,7 +19,6 @@ library(tidyr)
 library(xts)
 library(zoo)
 library(mgcv)
-library(oz)
 library(Kendall)
 library(ggplot2)
 library(doParallel)
@@ -497,8 +496,8 @@ hp <- hp + geom_point(data=real_df,aes(x=tau, y=0,colour=p_value),
   facet_wrap(~ catch,ncol=5)+ ggtitle("Residuals Streamflow after GAM") #+
 hp <- hp + scale_colour_grey(start = 0, end = 0.6)
 print(hp)
-save(hp, file="../Figure8ResidGAM_MDPaper.Rdata")
-
+save(hp, file="../projectdata/Figure8ResidGAM_MDPaper.Rdata")
+save(real_df, file="../projectdata/MKResidGAM_MDPaper.Rdata")
 # # production quality tiff, this is Figure 8 in the manuscript
 tiff("../manuscript/Figure8_ResidGAM_MDPaper.tif",res=600,compression="lzw",
      width=10*480,height=10*480)
@@ -629,6 +628,7 @@ hp <- hp + geom_point(data=real_df,aes(x=tau, y=0,colour=p_value),
 hp <- hp + scale_colour_grey(start = 0, end = 0.6)
 print(hp)
 
+save(real_df, file="../projectdata/GrMKResidGAM_MDPaper.Rdata")
 
 pander(real_df, caption="Mann Kendall results for the GAMM residuals with gridded rainfall")
 rm(Store_FwGRE2)

@@ -16,8 +16,6 @@ knitr::opts_chunk$set(echo = TRUE)
 library(pander)
 library(tidyverse)
 library(xts)
-library(zoo)
-library(ggplot2)
 library(reshape2)
 library(Rcpp)
 library(hydromad)
@@ -374,7 +372,7 @@ Extract the modelling results from the SimHyd model, rerun the model, do the Chi
 
 ```{r SimHydmodelling}
 # find the list of files with SimHyd results
-filelist <- dir("../Projectdata/HPCResults", pattern = "SimhydCalibOutput")[1:13]
+filelist <- dir("../Projectdata/HPCResults", pattern = "SimhydCalibOutput")
 
 for (i in seq_along(Stations[,1])) {
   # load the rainfall, ET and flow data
@@ -385,7 +383,8 @@ for (i in seq_along(Stations[,1])) {
   resid_out <- data.frame(matrix(0,ncol=10,nrow=nrow(pred_data)))
   # load the relevant output
   load(paste("../Projectdata/HPCResults/",
-             filelist[grep(Stations[i,1],filelist)],sep=""))
+            filelist[grep(paste(Stations[i,1],"SimhydCalibOutput",sep=""),
+                           filelist)],sep=""))
   # extract the model and update with the parameters
   Mod <- Output$mod
   
@@ -659,3 +658,22 @@ save(OutputMod,file="../ProjectData/ModelResults.Rdata")
 
 ```
 
+# Figure 4 in the manuscript
+The code below simply makes Figure 4 in the manuscript, which is only based on the station data and not on the gridded data.
+
+```{r Figure4, fig.cap=" Manuscript Figure 4, Comparing the performance of different models"}
+
+OutputMod <- rbind(OutputMod_GR4J, OutputMod_SimHyd)
+p <- ggplot(OutputMod,aes(station,r.squared)) +  geom_boxplot()
+p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
+                      size=5,aes(colour=rel.bias))
+p <- p + facet_wrap(~model, ncol=1  )
+print(p)
+
+# save the plot
+tiff("../Manuscript/Figure4_ModelCalStats.tif",res=600,
+     compression="lzw",
+     width=10*480,height=10*480)
+print(p)
+dev.off()
+```

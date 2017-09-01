@@ -1,0 +1,30 @@
+Loading required package: ggplot2
+Loading required package: hydromad
+Loading required package: zoo
+
+Attaching package: 'zoo'
+
+The following objects are masked from 'package:base':
+
+    as.Date, as.Date.numeric
+
+Loading required package: lattice
+Loading required package: latticeExtra
+Loading required package: RColorBrewer
+
+Attaching package: 'latticeExtra'
+
+The following object is masked from 'package:ggplot2':
+
+    layer
+
+Loading required package: polynom
+Loading required package: reshape
+Loading required package: tibble
+Loading required package: foreach
+Loading required package: iterators
+Loading required package: parallel
+Error in zoo(GridRain[GridRain$Station == Stations[i, 1], 2], order.by = time(rain_zoo)) : 
+  object 'GridRain' not found
+Calls: Calib.fun -> merge -> zoo
+Execution halted

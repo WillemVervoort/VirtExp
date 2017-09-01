@@ -16,6 +16,7 @@ Today <- format(Sys.Date(),"%Y%m%d")
 # LOAD REQUIRED PACKAGES # #####
 require(ggplot2)
 require(hydromad)
+require(tibble)
 # doMC only runs under Linux
 library(doMC)
 require(foreach)
@@ -25,13 +26,8 @@ load("DailyDataIncludingGridded.Rdata")
 load("ClimCh_project_MD.Rdata")
 # correct the column name of maxT in GridRainAllDataout
 colnames(GridRainAllDataout)[5] <- "MaxT"
-# change to tibble
-GridAlldata <- as_tibble(cbind(GridRainAllDataout,
-                               Date=rep(time(flow_zoo),nrow(Stations))))
-# now use spread
-GridAlldata_wide <- spread(GridAlldata[,c("Station","gridRain","Date")],
-                           key=Station, value=gridRain)
-Gridrain_zoo <- zoo(GridAlldata_wide[,2:14],order.by=time(flow_zoo))
+GridRain <- GridRainAllDataout[,1:2]
+rm(flow_rain_maxT_weekly)
 
 nc <- 10 # number of cores
 n <- 10 # number of SCE runs
@@ -80,7 +76,7 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
   # Define the model
   mod.Q <- hydromad(DATA=data.cal,
             sma = "gr4j", routing = "gr4jrouting", 
-            x1 = c(20,3000), x2 = c(-50,5), x3 = c(20,1000), x4 = c(1.0,20), 
+            x1 = c(20,3000), x2 = c(-50,30), x3 = c(20,1000), x4 = c(0.5,20), 
             etmult=c(0.01,0.5), return_state=TRUE)
   
   # Change hmadstat("rel.bias")
@@ -130,7 +126,8 @@ for (i in seq_along(Stations[,1])) {
   # Create storage frames
   # Run the calibration												
   Output <- Calib.fun(flow = flow_zoo[,i], 
-                      Rain = Gridrain_zoo[,i],
+                      Rain = zoo(GridRain[GridRain$Station==Stations[i,1],2],
+                                 order.by=time(rain_zoo)),
                       maxT = maxT_zoo[,i], 
                       station = Stations[i,1], nr=n)
   save(Output,
