@@ -54,7 +54,7 @@ Table4 <- data.frame(Station = Flow$Station,
                      P_mm_year = ifelse(Rain$p.value < 0.1,
                                         (exp(Rain$Value)-1)*52,NA))
 # now save the table as a csv file
-write.csv(Table4, "../projectdata/Table4.csv")
+write.csv(Table4, "../projectdata/Table4.csv", row.names=F)
 # show table
 pander(Table4, caption = "This is Table 4 in the manuscript")
 ```
@@ -76,7 +76,7 @@ Table5 <- data.frame(Station = Flow$Station, AIC = Flow$AIC,
                      Q_mm_year = ifelse(Flow$p.value < 0.1,
                                     (exp(Flow$Value)-1)*52,NA))
 # now save the table as a csv file
-write.csv(Table5, "../projectdata/Table5.csv")
+write.csv(Table5, "../projectdata/Table5.csv", row.names=F)
 # show table
 pander(Table5, caption = "This is Table 5 in the manuscript")
 ```
@@ -113,7 +113,7 @@ Table6 <- data.frame(Station = Flow_m4$Station, AIC = Flow_m4$AIC,
                      MK_pvalue = real_df$pvalue)
 
 # now save the table as a csv file
-write.csv(Table6, "../projectdata/Table6.csv")
+write.csv(Table6, "../projectdata/Table6.csv", row.names=F)
 # show table
 pander(Table6, caption = "This is Table 6 in the manuscript")
 ```
