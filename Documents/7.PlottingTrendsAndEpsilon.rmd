@@ -334,6 +334,7 @@ OutputChiewGR4J <- read.csv("../ProjectData/GR4JHPC_ChiewAnalysis.csv")
 OutputChiewGR4JGrid <- read.csv("../ProjectData/GR4JGridHPC_ChiewAnalysis.csv")
 non_par_eta <- read.csv("Data/non_par_eta.csv")
 
+
 OutputChiewSimHyd$mod <- "SimHyd"
 OutputChiewSimHydGrid$mod <- "SimHydGrid"
 OutputChiewGR4J$mod <- "GR4J"
@@ -342,8 +343,11 @@ OutputChiewGR4JGrid$mod <- "GR4JGrid"
 ## combine everything into one df
 OutputChiew <- cbind(rbind(OutputChiewSimHyd,OutputChiewSimHydGrid,
                            OutputChiewGR4J, OutputChiewGR4JGrid),
-                     rep(rep(non_par_eta$stn_eta,each=10),4))
-colnames(OutputChiew)[5] <- "np_eta_p"
+                     c(rep(non_par_eta$stn_eta,each=10),
+                       rep(non_par_eta$grid_eta,each=10),
+                       rep(non_par_eta$stn_eta,each=10),
+                       rep(non_par_eta$grid_eta,each=10)))
+colnames(OutputChiew)[7] <- "np_eta_p"
 ```
 
 ## A plot comparing the model derived and the non-parametric $\epsilon$ values
@@ -360,7 +364,7 @@ p <- ggplot(OutputChiew, aes(x = station, y = eta_p)) +
 p <- p +  geom_point(aes(x=station, y=np_eta_p),
            shape=17,size=3,colour="gray25") + 
         facet_wrap(~ mod,ncol=1)
-p <- p +  xlab("Station") +
+p <- p +  xlab("Station") + ylim(-0.5,3) +
   theme(axis.title.x = element_text(face="bold",  size=14),
         axis.text.x  = element_text(size=12)) +
   ylab("Rainfall Elasticity") +
