@@ -131,12 +131,12 @@ p <- p + ggtitle("Streamflow") +
   theme(strip.text.x = element_text(size=16))
 print(p)
 
-# # publication quality
-# tiff("../manuscript/Figure6_StreamflowFDCDifference.tif",
-#      width=16*480, height=12*480,
-#      res=600, compression="lzw")
-# print(p)
-# dev.off()
+# publication quality
+tiff("../manuscript/Figure6_StreamflowFDCDifference.tif",
+     width=16*480, height=12*480,
+     res=600, compression="lzw")
+print(p)
+dev.off()
 ```
 
 ## daily rainfall data
@@ -195,12 +195,12 @@ p <- p + ggtitle("Rainfall") +
   theme(strip.text.x = element_text(size=16))
 print(p)
 
-# publication quality
-# tiff("../manuscript/Figure7_RainfallFDCDifference.tif",
-#      width=16*480, height=12*480,
-#      res=600, compression="lzw")
-# print(p)
-# dev.off()
+#publication quality
+tiff("../manuscript/Figure7_RainfallFDCDifference.tif",
+     width=16*480, height=12*480,
+     res=600, compression="lzw")
+print(p)
+dev.off()
 ```
 
 ## daily gridded rainfall

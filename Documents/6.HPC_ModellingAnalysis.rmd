@@ -658,22 +658,3 @@ save(OutputMod,file="../ProjectData/ModelResults.Rdata")
 
 ```
 
-# Figure 4 in the manuscript
-The code below simply makes Figure 4 in the manuscript, which is only based on the station data and not on the gridded data.
-
-```{r Figure4, fig.cap=" Manuscript Figure 4, Comparing the performance of different models"}
-
-OutputMod <- rbind(OutputMod_GR4J, OutputMod_SimHyd)
-p <- ggplot(OutputMod,aes(station,r.squared)) +  geom_boxplot()
-p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
-                      size=5,aes(colour=rel.bias))
-p <- p + facet_wrap(~model, ncol=1  )
-print(p)
-
-# save the plot
-tiff("../Manuscript/Figure4_ModelCalStats.tif",res=600,
-     compression="lzw",
-     width=10*480,height=10*480)
-print(p)
-dev.off()
-```

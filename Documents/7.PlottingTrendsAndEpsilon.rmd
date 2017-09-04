@@ -32,7 +32,7 @@ This document is related to the manuscript "Disentangling climate change trends 
 FRANCIS H. S. CHIEW (2006) Estimation of rainfall elasticity of streamflow in
 Australia, Hydrological Sciences Journal, 51:4, 613-625, DOI: 10.1623/hysj.51.4.613
 
-This script also generates final versions of *Figure 3*, *Figure 9* and *Figure 4* in the manuscript. 
+This script also generates final versions of *Figure 3* and *Figure 9* in the manuscript. 
 
 To recap, we have residuals for predictions between 1980 - 2010 of calibrated models across 13 catchments (calibrated on 1970 - 1980). However, there are results for both station rainfall and gridded rainfall for both the SimHyd and GR4J models to make sure there is no difference between these. For all the fits, performances were extracted and initial plots made in part 6 of the series. It is clear from those plots (which will be partly repeated here) that SimHyd performed more poorly than GR4J and that the models using the gridded rainfall data performed consistently worse compared to the station rainfall data.
 As a result, the manuscript concentrates only on the station rainfall data as this gives the best model performances across the catchments.
@@ -66,8 +66,9 @@ load(file="../ProjectData/residuals/GR4JHPCresiduals.Rdata")
 
 GR4J_results <- list()
 
-# also read in the model performance from part 6
-Modelperf <- read.csv("../ProjectData/GR4JHPC_modelperformance.csv")
+# also read in the model performance from part 6 (OutputMod)
+load("../ProjectData/ModelResults.Rdata")
+Modelperf <- OutputMod[OutputMod$model=="GR4JStationData",] 
 
 # run through a loop
 for (i in seq_along(Stations[,1])){
@@ -86,7 +87,7 @@ for (i in seq_along(Stations[,1])){
     Results[j,5:6] <- as.numeric(MKout[1:2])
     
     # add the model performance
-    Results[j,7:8] <- Modelperf[(i-1)+j,2:3]
+    Results[j,7:8] <- Modelperf[(i-1)+j,1:2]
   }
   GR4J_results[[i]] <- Results
 }
@@ -100,9 +101,9 @@ for (i in seq_along(Stations[,1])){
 load(file="../ProjectData/residuals/GR4JGridHPCresiduals.Rdata")
 
 GR4JGrid_results <- list()
+# from section 6 model performance
+Modelperf <- OutputMod[OutputMod$model=="GR4JGriddedData",] 
 
-# also read in the model performance from part 6
-Modelperf <- read.csv("../ProjectData/GR4JGridHPC_modelperformance.csv")
 
 # run through a loop
 for (i in seq_along(Stations[,1])){
@@ -121,7 +122,7 @@ for (i in seq_along(Stations[,1])){
     Results[j,5:6] <- as.numeric(MKout[1:2])
     
     # add the model performance
-    Results[j,7:8] <- Modelperf[(i-1)+j,2:3]
+    Results[j,7:8] <- Modelperf[(i-1)+j,1:2]
   }
   GR4JGrid_results[[i]] <- Results
 }
@@ -136,8 +137,9 @@ load(file="../ProjectData/residuals/SimHydHPCresiduals.Rdata")
 
 Simhyd_results <- list()
 
-# also read in the model performance from part 6
-Modelperf <- read.csv("../ProjectData/SimHydHPC_modelperformance.csv")
+# from section 6 model performance
+Modelperf <- OutputMod[OutputMod$model=="SimHydStationData",] 
+
 
 # run through a loop
 for (i in seq_along(Stations[,1])){
@@ -156,7 +158,7 @@ for (i in seq_along(Stations[,1])){
     Results[j,5:6] <- as.numeric(MKout[1:2])
     
     # add the model performance
-    Results[j,7:8] <- Modelperf[(i-1)+j,2:3]
+    Results[j,7:8] <- Modelperf[(i-1)+j,1:2]
   }
   Simhyd_results[[i]] <- Results
 }
@@ -171,8 +173,9 @@ load(file="../ProjectData/residuals/SimHydGridHPCresiduals.Rdata")
 
 SimhydGrid_results <- list()
 
-# also read in the model performance from part 6
-Modelperf <- read.csv("../ProjectData/SimHydGridHPC_modelperformance.csv")
+# from section 6 model performance
+Modelperf <- OutputMod[OutputMod$model=="SimHydGridStationData",] 
+
 
 # run through a loop
 for (i in seq_along(Stations[,1])){
@@ -191,7 +194,7 @@ for (i in seq_along(Stations[,1])){
     Results[j,5:6] <- as.numeric(MKout[1:2])
     
     # add the model performance
-    Results[j,7:8] <- Modelperf[(i-1)+j,2:3]
+    Results[j,7:8] <- Modelperf[(i-1)+j,1:2]
   }
   SimhydGrid_results[[i]] <- Results
 }
@@ -215,7 +218,7 @@ OverallResults_MK <- cbind("Mann Kendall", OverallResults[,c(1:2,6:9)])
 # make column names the same
 colnames(OverallResults_GAMM) <- 
   colnames(OverallResults_MK) <-
-  c("Method", "Model","Station","trend","p_trend","r.squared","rel.bias")
+  c("Method", "Model","Station","trend","p_trend","rel.bias","r.squared")
 
 # Now stack again
 plot.df <- rbind(OverallResults_GAMM,OverallResults_MK)
@@ -419,7 +422,7 @@ p <- ggplot(plot.df1, aes(x = Station, y = r.squared)) +
   geom_boxplot(col="grey50") +  
   facet_wrap(~ Model,ncol=1) +
   stat_summary(fun.y=mean, geom="point", shape=16, size=5,col="black",lwd=2)
-p <- p +  xlab("Station") +
+p <- p +  xlab("Station") + ylim(0.4,1) +
   theme(axis.title.x = element_text(face="bold",  size=16),
         axis.text.x  = element_text(size=12)) +
   ylab("Nash Sutcliffe Efficiency") +
