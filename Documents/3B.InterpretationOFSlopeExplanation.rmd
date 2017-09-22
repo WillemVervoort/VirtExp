@@ -1,0 +1,87 @@
+---
+title: "Back transformation theory"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document:
+      fig_width: 7
+      fig_height: 6
+      fig_caption: true
+---
+```{r setup, warning=F, message=F}
+# root dir
+knitr::opts_knit$set(root.dir = 
+                       "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_chunk$set(echo = TRUE)
+# LOAD REQUIRED PACKAGES # #####
+library(pander)
+library(tidyr)
+library(zoo)
+library(mgcv)
+library(ggplot2)
+```
+This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository. 
+
+# Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology.  
+
+# Back transformation
+This document is related to the *[3.GAMmodelTest.pdf](./3.GAMmodelTests.pdf)* document and is to explain the back transformation used in the `gamm()` and `gls()` regressions, which are essentially the following type of regression equation  
+$log(y) = \beta_1*trend$  
+How do we interpret $\beta_1$?  
+Assume a 1 unit change in trend in time, this results in:  
+$log(y_{t=1}) - log(y_{t=0}) = \beta_1$ or  
+$log(\frac{y_{t=1}}{y_{t=0}}) = \beta_1$  
+raising both sides to a power results in:  
+$\frac{y_{t=1}}{y_{t=0}} = exp(\beta_1)$  
+Or:  
+$y_{t=1}=exp(\beta_1)*y_{t=0}$  
+This means the actual slope of the trend is:  
+$exp(\beta_1) - 1$    
+  
+```{r small_demo}
+load("data/ClimCh_project_MD.Rdata")
+
+test <- flow_rain_maxT_weekly[flow_rain_maxT_weekly$Station=="DOMB",]
+# add a vector of trend values
+test$trend <- 1:nrow(test)
+
+# remove 0 values
+test1 <- test[test$Flow>0,]
+
+# plot distributions
+par(mfrow=c(2,2))
+hist(test1$Flow, main="untransformed")
+hist(log(test1$Flow), main="log trans")
+hist(log10(test1$Flow), main ="log10 trans")
+hist(log1p(test1$Flow), main = "log(flow+1)")
+
+# log10 seems best
+# modelling
+plot(log10(Flow)~trend, data = test1)
+mod1 <- lm(log10(Flow)~trend, data = test1)
+summary(mod1)
+plot(residuals(mod1))
+# interpret the slope
+slope <- exp(coef(mod1)[2]) -1
+slope
+# annual slope
+slope*52
+```
+
+
+# comparison with non-transformed regression (for order of magnitude)
+To compare the order of magnitude of the slope from the log transformed flow data, the simple regression also run. While this is statistically flawed it should at least indicate the order of magnitude of the actual slope in the data.  
+
+```{r non_transformed}
+mod2 <- lm(Flow~trend, data = test1)
+summary(mod2)
+plot(residuals(mod2))
+# interpret the slope
+(slope <- coef(mod2)[2])
+# annual slope
+slope*52
+
+```
+
+This indicates the same order of magnitude as the log transformed analysis.

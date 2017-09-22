@@ -26,7 +26,11 @@ This rmarkdown document and the resulting pdf are stored on  [github](https://gi
 
 # Introduction
 This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology.  
-This document is a further component on the analysis of the streamflow data using Generalised Additive models (GAM) testing for a trend in the data, or testing for a trend in the residuals (part 3 of the series). This document, part 3A, only creates table 4, 5, 6 in the Manuscript and back transforms the trends.
+
+This document is a further component on the analysis of the streamflow data using Generalised Additive models (GAM) testing for a trend in the data , or testing for a trend in the residuals (part 3 of the series, [3.GAMmodelTests.pdf](./3.GAMmodelTests.pdf)). This document, part 3A, only creates table 4, 5, 6 in the Manuscript and back transforms the trends.
+For the back transformation we :
+$BackTransformedTrend\; =\; exp(Trend) - 1$  
+see [3B.InterpretationOfSlopeExplantion.pdf](./3B.InterpretationOfSlopeExplantion.pdf)
 The data for this document has been generated in document 3 and was stored in a temporary directory called **"../projectdata"**, so one directory up and then a directory called "projectdata". This directory is not included on github, as this data can be regenerated using document 3.
 Only the results using the precipitaion data from the rainfall stations is used here as the results from the gridded rainfall are not different.  
 
