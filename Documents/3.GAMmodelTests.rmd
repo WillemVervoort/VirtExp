@@ -32,7 +32,7 @@ This rmarkdown document and the resulting pdf are stored on  [github](https://gi
 This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology.  
 This part of the series covers the analysis of the streamflow data using Generalised Additive models (GAM) testing for a trend in the data, or testing for a trend in the residuals. In particular, this extends the Mann Kendall analysis, as the Mann Kendall tau only indicates a strength, significance and direction of the trend, but does not quantify the magnitude of the trend.  
 The different models are outlined in **Table 2** in the main manuscript. The methods describe in detail how the GAM are developed with reference to the underlying theory. In the analysis, the trend models are fitted to flow and rain data > 0, as this means the log transformation is better interpretable. In the end, the analysis is interested in changes in the positive flow values. A binary model could be fit to check if there is any change in the number of weeks or days with rainfall.  
-This document follows **Table 2** in the series of models, so the headings (and model numbers) relate to this table. The only exception is model 6, which is dealt with in document 3B. 
+This document follows **Table 2** in the series of models, so the headings (and model numbers) relate to this table. 
 
 # The data  
 Using the datasets that were developed earlier, we can load in the daily data for streamflow, rainfall and temperature.
@@ -68,7 +68,7 @@ Store2 <- foreach(i = 1:length(Stations[,1]),
                       flow_rain_maxT_weekly$Station == Stations[i,1])
   gamm.data$Flow[gamm.data$Flow==0] <- NA
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendOnly <- gls(log10(Flow)~trend, correlation= corCAR1(),
+  gam_TrendOnly <- gls(log(Flow)~trend, correlation= corAR1(),
        data=na.omit(gamm.data))
   out <- list(model = gam_TrendOnly,
               results = data.frame(Station=Stations[i,1],
@@ -114,7 +114,7 @@ Store_Rain <- foreach(i = 1:length(Stations[,1]),
                       flow_rain_maxT_weekly$Station == Stations[i,1])
   gamm.data$Rain[gamm.data$Rain==0] <- NA
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendR <- gls(log10(Rain)~trend, correlation= corCAR1(),
+  gam_TrendR <- gls(log(Rain)~trend, correlation= corAR1(),
        data=na.omit(gamm.data))
   out <- list(model = gam_TrendR,
               results = data.frame(Station=Stations[i,1],
@@ -160,7 +160,7 @@ Store_GridRain <- foreach(i = 1:length(Stations[,1]),
                       weekGridRainAllDataout$Station == Stations[i,1])
   gamm.data$gridRain[gamm.data$gridRain==0] <- NA
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendGridR <- gls(log10(gridRain)~trend, correlation= corCAR1(),
+  gam_TrendGridR <- gls(log(gridRain)~trend, correlation= corAR1(),
        data=na.omit(gamm.data))
   out <- list(model = gam_TrendGridR,
               results = data.frame(Station=Stations[i,1],
@@ -208,7 +208,7 @@ Store_FwR <- foreach(i = 1:length(Stations[,1]),
                       flow_rain_maxT_weekly$Station == Stations[i,1])
   gamm.data$Flow[gamm.data$Flow==0] <- NA
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendFlow_withR <- gamm(log10(Flow)~s(Rain) + trend, 
+  gam_TrendFlow_withR <- gamm(log(Flow)~s(Rain) + trend, 
                                correlation= corCAR1(), data=na.omit(gamm.data))
   out <- list(model = gam_TrendFlow_withR,
               results = data.frame(Station=Stations[i,1],
@@ -251,7 +251,7 @@ Store_FwGR <- foreach(i = 1:length(Stations[,1]),
                       weekGridRainAllDataout$Station == Stations[i,1])
   gamm.data$Flow[gamm.data$Flow==0] <- NA
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendFlow_withGR <- gamm(log10(Flow)~s(gridRain) + trend, 
+  gam_TrendFlow_withGR <- gamm(log(Flow)~s(gridRain) + trend, 
                                   correlation= corCAR1(),
                                data=na.omit(gamm.data))
   out <- list(model = gam_TrendFlow_withGR,
@@ -299,7 +299,7 @@ Store_FwRE <- foreach(i = 1:length(Stations[,1]),
                       flow_rain_maxT_weekly$Station == Stations[i,1])  
   gamm.data$Flow[gamm.data$Flow==0] <- NA
   gamm.data$trend <- 1:nrow(gamm.data)
-  gam_TrendFlow_withRandE <- gamm(log10(Flow)~s(Rain) + s(Rain, MaxT) + 
+  gam_TrendFlow_withRandE <- gamm(log(Flow)~s(Rain) + s(Rain, MaxT) + 
                                        trend, correlation= corCAR1(),
                                        data=na.omit(gamm.data),
                                   control=list(niterEM=0))
@@ -351,7 +351,7 @@ Store_FwGRE <- foreach(i = 1:length(Stations[,1]),
   # need to set k is 10 (large enough), as it cannot be default k=-1 
   # due to missing data. This is for R > 3.4.0
   # unclear, runs with k= -1 in R 3.3.0
-  gam_TrendFlow_withGRE <- gamm(log10(Flow) ~ 
+  gam_TrendFlow_withGRE <- gamm(log(Flow) ~ 
                                 s(gridRain,k=10) +
                                 s(gridRain,MaxT, k=10) + 
                                 trend,
@@ -402,7 +402,7 @@ Store_FwRE2 <- foreach(i = 1:length(Stations[,1]),
   gamm.data <- subset(flow_rain_maxT_weekly,
                       flow_rain_maxT_weekly$Station == Stations[i,1])
   gamm.data$Flow[gamm.data$Flow==0] <- NA
-  gam_Flow_withRandE <- gamm(log10(Flow)~s(Rain) + s(Rain, MaxT) , 
+  gam_Flow_withRandE <- gamm(log(Flow)~s(Rain) + s(Rain, MaxT) , 
                                   correlation= corCAR1(),
                              data=na.omit(gamm.data),
                                   control=list(niterEM=5))
@@ -538,7 +538,7 @@ Store_FwGRE2 <- foreach(i = 1:length(Stations[,1]),
                       weekGridRainAllDataout$Station == Stations[i,1])
   gamm.data$Flow[gamm.data$Flow==0] <- NA
 
-  gam_Flow_withGRE <- gamm(log10(Flow) ~ 
+  gam_Flow_withGRE <- gamm(log(Flow) ~ 
                              s(gridRain, k=10) +
                              s(gridRain,MaxT, k=10),
                              correlation= corCAR1(),

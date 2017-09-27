@@ -1,7 +1,6 @@
 No,Model,Trend,Analysis
 1,Log(Q ) ~ trend + error,linear,40-year trend in streamflow to compare with Mann Kendall analysis
 2,Log(P) ~ trend + error,linear,40-year trend in rainfall to compare with Mann Kendall analysis
-3,Log(Q) ~ s(P) + trend + error,linear,The trend in this model relative to model 1 indicates the importance of “other processes”, while the comparison with model 2 indicates the “amplification”. 
+3,Log(Q) ~ s(P) + trend + error,linear,The trend in this model relative to model 1 indicates the importance of “other processes". The comparison with model 2 indicates the “amplification”. 
 4,Log (Q + 1) ~ s(P) + s(maxT,P) + trend + error,linear,Difference between model 3 and 4 is the effect of evapotranspiration on the trend. The remaining trend is related to changes over time in the rainfall runoff response.
 5,Log(Q + 1)  ~ s(P) + s(maxT,P) + error,Mann-Kendall,Check if linear trend assumption is biased.
-6, binomial log(P) ~ trend + error, 40-year trend in weekly and daily rainfall occurence
