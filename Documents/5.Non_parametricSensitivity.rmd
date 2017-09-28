@@ -159,10 +159,12 @@ print(p)
 
 There clearly is a large difference between the non-parametric epsilon calculated from the gridded data, compared to epsilon calculated from the station data. The station data is much more in alignment with the original paper (Chiew, 2006), while the gridded data is clearly much smoother and therefore does not indicate the amplifications that are visible in the station data.
 
-# Rainfall runoff plots for annual data (station only)  
+# Rainfall runoff plots for annual data  
 For a sanity check we plot the rainfall against the runoff data to understand the runoff coefficients.
 
-```{r RR}
+## Station data
+
+```{r RRst, fig.cap="Rainfall runoff relationship for station data"}
 # First rearrange the annual data to a dataframe
 flow_an_stack <- stack(as.data.frame(annualF))
 rain_an_stack <- stack(as.data.frame(annualR))
@@ -197,6 +199,38 @@ print(p)
 dev.off()
 
 ```
+
+## Gridded data
+```{r RRGr, fig.cap="Rainfall runoff relationship for gridded data"}
+# First rearrange the annual data to a dataframe
+flow_an_stack <- stack(as.data.frame(annualF))
+raingr_an_stack <- stack(as.data.frame(annualGridR))
+maxT_an_stack <- stack(as.data.frame(annualT))
+
+RRgr_df <- data.frame(stn =substr(flow_an_stack$ind,1,4),flow=flow_an_stack$values,
+                        rain=raingr_an_stack$values,maxT=maxT_an_stack$values,
+                        trend = rep(1:nrow(annualF),ncol(annualF))) 
+
+p <- ggplot(RRgr_df, aes(x = rain, y = flow)) +
+  geom_point(size=1.5,col="black") + 
+  geom_abline(intercept=0, slope=1,col="grey50",lty=2,lwd=1) +
+  facet_wrap(~ stn,ncol=5) +
+  guides(col = guide_legend(nrow = 3))
+p <- p + ggtitle("Rainfall - Runoff (gridded)") +
+  theme(plot.title = element_text(lineheight=.8, face="bold"))+
+  xlab("Gridded Rainfall") +
+  theme(axis.title.x = element_text(face="bold",  size=12),
+        axis.text.x  = element_text(size=10)) +
+  ylab("Runoff") +
+  theme(axis.title.y = element_text(face="bold",  size=12),
+        axis.text.y  = element_text(size=10)) +
+  theme(legend.text = element_text( size = 10))+
+  theme(legend.title = element_text(size=12, face="bold")) +
+  theme(strip.text.x = element_text(size=12))
+print(p)
+
+```
+
 
 ## Saving output for later
 
