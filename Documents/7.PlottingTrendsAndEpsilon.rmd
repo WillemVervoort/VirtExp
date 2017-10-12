@@ -267,7 +267,7 @@ This plot suggests that there is no real relationship between the model performa
 # Now plot the actual trends
 p <- ggplot(plot.df, aes(x = Station, y = trend)) +
   scale_colour_continuous(name="significance",low="gray50", high="black")  +
-  geom_boxplot() +  facet_wrap(~ Model + Method,ncol=1)
+  geom_boxplot(coef=0.75) +  facet_wrap(~ Model + Method,ncol=1)
 p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
                       size=3,aes(col=sig),lwd=2)
 
@@ -299,7 +299,7 @@ plot.df1 <- plot.df1[-(grep("SimHydGrid",plot.df1$Model)),]
 p1 <- ggplot(plot.df1, aes(x = Station, y = trend)) +
   scale_colour_continuous(name="Significance\n",
                           low="gray50", high="black")  +
-  geom_boxplot() +  facet_wrap(~ Model + Method,ncol=1,
+  geom_boxplot(coef=0.75) +  facet_wrap(~ Model + Method,ncol=1,
                                scales = "free")
 p1 <- p1 + stat_summary(fun.y=mean, geom="point", shape=16,
                       size=3,aes(col=sig),lwd=2)
@@ -361,7 +361,7 @@ This is *Figure 3* in the manuscript
 ```{r epsilonPlot, fig.width=8, fig.height = 11, fig.cap="Rainfall elasticities calculated using a non-parametric method (Chiew, 2006) (grey triangles) and using two different rainfall runoff models (SimHyd and GR4J) and scaled gridded and non-griddd rainfall and temperature data (black dots (means) and grey boxplots with small black dots as outliers). The model calibrations were replicated 10 times to cover parameter equifinality. This equifinality is represented by the boxplots."}
 
 p <- ggplot(OutputChiew, aes(x = station, y = eta_p)) +
-  geom_boxplot(col="gray50") +  facet_wrap(~ mod, ncol=1) +
+  geom_boxplot(col="gray50", coef=0.75) +  facet_wrap(~ mod, ncol=1) +
   stat_summary(fun.y=mean, geom="point", shape=16, size=3,col="black",lwd=2)
 
 p <- p +  geom_point(aes(x=station, y=np_eta_p),

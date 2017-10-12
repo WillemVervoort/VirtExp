@@ -34,7 +34,7 @@ To recap, we have 4 different High Performance Computing results for each of the
 
 The model fitting is based on the shuffled complex evolution optimisation in Hydromad as described in more detail in the paper. Essentially the model was fitted 10 times using the `FitBySCE()` function in the [Hydromad](http://hydromad.cacthment.org) package. The scripts related to the high performance computing and the HPC scripts are stored in the Rcode/HPC folder.  
 
-The HPC results are not stored on Github, as the files are too large, but are stored in the [Cloudstor data directory](http://insert.a.link).
+The HPC results are not stored on Github, as the files are too large, but are stored in the [Cloudstor data directory](https://cloudstor.aarnet.edu.au/plus/index.php/s/68aKtJH6sDwibTC).
 
 # 1. Load basic data and define  storage
 This loads all the basic climate data and the catchment characteristics.  
@@ -54,7 +54,7 @@ GridAlldata_wide <- spread(GridAlldata[,c("Station","gridRain","Date")],
 Gridrain_zoo <- zoo(GridAlldata_wide[,2:14],order.by=time(flow_zoo))
 
 # compile SimHyd
-rcode_dir <- paste(getwd(),"RCode/HPC",sep="/")
+rcode_dir <- paste(getwd(),"RCode/Simhyd",sep="/")
 source(paste(rcode_dir,"Simhyd.r",sep="/"))
 ```
 
@@ -627,10 +627,10 @@ pander(aggregate(OutputChiew[,2:5],list(Station=OutputChiew$station),
        caption="Results SimHydGrid epsilon fit with significance")
 
 
-save(Residuals,file="../ProjectData/residuals/SimHydGridHPCresiduals.Rdata")
+saveRDS(Residuals,file="../ProjectData/residuals/SimHydGridHPCresiduals.RDS")
 
 OutputMod_GridSimHyd <- do.call(rbind,mod_Res)
-save(OutputMod_GridSimHyd,file="../ProjectData/SimHydHPCModelResults.Rdata")
+saveRDS(OutputMod_GridSimHyd,file="../ProjectData/SimHydHPCModelResults.RDS")
 
 OutputMod_GridSimHyd <- OutputMod_GridSimHyd[,c(1:4,ncol(OutputMod_GridSimHyd))]
 OutputMod_GridSimHyd$model <- "SimHydGridStationData"
