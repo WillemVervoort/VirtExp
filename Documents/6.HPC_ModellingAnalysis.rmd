@@ -32,7 +32,7 @@ This is ultimately related to *Figure 3, Figure 4 and Figure 9* in the manuscrip
 
 To recap, we have 4 different High Performance Computing results for each of the 13 catchments. In each of these the two models (GR4J and SimHyd) were fitted to 10 years of climate data (1970 - 1980). However, there are results for both station rainfall and gridded rainfall to make sure there is no difference between these. As we have seen in the non-parametric epsilon calculation, there is a major difference between the two rainfall data sets, and it is not necessarily clear, which one of these is a better data set.
 
-The model fitting is based on the shuffled complex evolution optimisation in Hydromad as described in more detail in the paper. Essentially the model was fitted 10 times using the `FitBySCE()` function in the [Hydromad](http://hydromad.cacthment.org) package. The scripts related to the high performance computing and the HPC scripts are stored in the Rcode/HPC folder.  
+The model fitting is based on the shuffled complex evolution optimisation in Hydromad as described in more detail in the paper. Essentially the model was fitted 10 times using the `FitBySCE()` function in the [Hydromad](http://hydromad.catchment.org) package. The scripts related to the high performance computing and the HPC scripts are stored in the Rcode/HPC folder.  
 
 The HPC results are not stored on Github, as the files are too large, but are stored in the [Cloudstor data directory](https://cloudstor.aarnet.edu.au/plus/index.php/s/68aKtJH6sDwibTC).
 

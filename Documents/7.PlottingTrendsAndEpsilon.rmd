@@ -267,9 +267,9 @@ This plot suggests that there is no real relationship between the model performa
 # Now plot the actual trends
 p <- ggplot(plot.df, aes(x = Station, y = trend)) +
   scale_colour_continuous(name="significance",low="gray50", high="black")  +
-  geom_boxplot(coef=0.75) +  facet_wrap(~ Model + Method,ncol=1)
+  geom_boxplot(coef=0.5) +  facet_wrap(~ Model + Method,ncol=1)
 p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
-                      size=3,aes(col=sig),lwd=2)
+                      aes(col=sig),lwd=2)
 
 p <- p + ggtitle("Residual trends: predicted - observed 1980 - 2010") +
   theme(plot.title = element_text(lineheight=.8, face="bold"))+
@@ -299,10 +299,10 @@ plot.df1 <- plot.df1[-(grep("SimHydGrid",plot.df1$Model)),]
 p1 <- ggplot(plot.df1, aes(x = Station, y = trend)) +
   scale_colour_continuous(name="Significance\n",
                           low="gray50", high="black")  +
-  geom_boxplot(coef=0.75) +  facet_wrap(~ Model + Method,ncol=1,
+  geom_boxplot(coef=0.5) +  facet_wrap(~ Model + Method,ncol=1,
                                scales = "free")
 p1 <- p1 + stat_summary(fun.y=mean, geom="point", shape=16,
-                      size=3,aes(col=sig),lwd=2)
+                    aes(col=sig),lwd=2)
 
 p1 <- p1 +   xlab("Station") +
   theme(axis.title.x = element_text(face="bold",  size=16),
@@ -361,11 +361,11 @@ This is *Figure 3* in the manuscript
 ```{r epsilonPlot, fig.width=8, fig.height = 11, fig.cap="Rainfall elasticities calculated using a non-parametric method (Chiew, 2006) (grey triangles) and using two different rainfall runoff models (SimHyd and GR4J) and scaled gridded and non-griddd rainfall and temperature data (black dots (means) and grey boxplots with small black dots as outliers). The model calibrations were replicated 10 times to cover parameter equifinality. This equifinality is represented by the boxplots."}
 
 p <- ggplot(OutputChiew, aes(x = station, y = eta_p)) +
-  geom_boxplot(col="gray50", coef=0.75) +  facet_wrap(~ mod, ncol=1) +
-  stat_summary(fun.y=mean, geom="point", shape=16, size=3,col="black",lwd=2)
+  geom_boxplot(col="gray50", coef=0.5) +  facet_wrap(~ mod, ncol=1) +
+  stat_summary(fun.y=mean, geom="point", shape=16, col="black",lwd=2)
 
 p <- p +  geom_point(aes(x=station, y=np_eta_p),
-           shape=17,size=3,colour="gray25") + 
+           shape=17,size=3,colour="gray25", coef=0.5) + 
         facet_wrap(~ mod,ncol=1)
 p <- p +  xlab("Station") + ylim(-0.5,3) +
   theme(axis.title.x = element_text(face="bold",  size=14),
@@ -396,9 +396,9 @@ This is a replotting of what was in part 6 of these documents to create *Figure 
 
 ```{r, plotPerformance, fig.width=8, fig.height = 11, fig.cap = "Boxplots and mean values (black dots) for goodness of fit of the GR4J and SimHyd calibrations on the 1970 - 1979 data using gridded and non-gridded data. The goodness of fit is indicated by the Nash Sutcliffe Efficiency, which is equal to 1 for a perfect fit, and 0 for a fit equal to the average streanflow."}
 p <- ggplot(plot.df, aes(x = Station, y = r.squared)) +
-  geom_boxplot(col="grey50") +  
+  geom_boxplot(col="grey50", coef=0.75) +  
   facet_wrap(~ Model,ncol=1, scales="free") +
-  stat_summary(fun.y=mean, geom="point", shape=16, size=5,col="black",lwd=2)
+  stat_summary(fun.y=mean, geom="point", shape=16,col="black",lwd=2)
 p <- p + ggtitle("Model Calibration NSE") +
   theme(plot.title = element_text(lineheight=.8, face="bold"))+
   xlab("Station") +
@@ -419,9 +419,9 @@ Now replot just for the publication, without the title and only the station data
 
 ```{r figure4pub}
 p <- ggplot(plot.df1, aes(x = Station, y = r.squared)) +
-  geom_boxplot(col="grey50") +  
+  geom_boxplot(col="grey50", coef=0.5) +  
   facet_wrap(~ Model,ncol=1) +
-  stat_summary(fun.y=mean, geom="point", shape=16, size=5,col="black",lwd=2)
+  stat_summary(fun.y=mean, geom="point", shape=16,col="black",lwd=2)
 p <- p +  xlab("Station") + ylim(0.4,1) +
   theme(axis.title.x = element_text(face="bold",  size=16),
         axis.text.x  = element_text(size=12)) +
