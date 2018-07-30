@@ -8,7 +8,8 @@
 ##  ~ Set up ~  ##
 ##################
 # SET WORKING DIRECTORY # #####
-setwd("/home/562/wxv562/MD_Projectdata")
+#setwd("/home/562/wxv562/MD_Projectdata")
+setwd("/project/RDS-FSC-CCH-RW/MD_Projectdata")
 Today <- format(Sys.Date(),"%Y%m%d")
 
 #####
@@ -62,7 +63,7 @@ Ofit <- function(mod,Store) {
 # Write a function to calibrate each station
 Calib.fun <- function(flow,Rain,maxT,station,nr=10,
                       start.t="1970-01-01", 
-                      end.t="1979-12-31") {
+                      end.t="2010-12-31") {
   # flow is the flow data (as a zoo series)
   # Rain is the rainfall data (as a zoo series)
   # maxT is maximum temperature as a zoo series
@@ -81,7 +82,7 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
   # Define the model
   mod.Q <- hydromad(DATA=data.cal,
             sma = "gr4j", routing = "gr4jrouting", 
-            x1 = c(20,2000), x2 = c(-50,30), x3 = c(20,1000), x4 = c(0.5,20), 
+            x1 = c(20,4000), x2 = c(-50,30), x3 = c(20,1000), x4 = c(0.5,20), 
             etmult=c(0.01,0.5), return_state=TRUE)
   
 

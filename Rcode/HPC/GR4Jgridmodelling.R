@@ -4,34 +4,38 @@
 
 # GR4J modelling with gridded rainfall data
 
+# INPUT FILES:
+#"20160804_ClimCh_project_MD.Rdata"
+#"GriddedRainfallData.Rdata"
+# includes flow rain maxT and gridded rainfall data
 
 ##################
 ##  ~ Set up ~  ##
 ##################
-# SET WORKING DIRECTORY # #####
-setwd("/home/562/wxv562/MD_Projectdata")
+#setwd("/home/562/wxv562/MD_Projectdata")
+setwd("/project/RDS-FSC-CCH-RW/MDProjectdata")
 Today <- format(Sys.Date(),"%Y%m%d")
 
 #####
 # LOAD REQUIRED PACKAGES # #####
-require(ggplot2)
 require(hydromad)
-require(tibble)
-# doMC only runs under Linux
-library(doMC)
-require(foreach)
+library(doParallel)
 #####
+
+#####
+# STATIONS # #####
+flow_stns <- data.frame("COTT"="410730", "RUTH"="219001", "CORA"="215004", "ELIZ"="G8150018", "COCH"="113004A", "COEN"="922101B", "SCOT"="A5030502", "HELL"="312061", "NIVE"="304497", "MURR"="405205", "SOUT"="225020A", "YARR"="614044", "DOMB"="607155")
+
 # read in the data
-load("DailyDataIncludingGridded.Rdata")
-load("ClimCh_project_MD.Rdata")
-# correct the column name of maxT in GridRainAllDataout
-colnames(GridRainAllDataout)[5] <- "MaxT"
-GridRain <- GridRainAllDataout[,1:2]
+load("Data/ClimCh_project_MD.Rdata")
+load("Data/DailyDataIncludingGridded.Rdata")
+GridRain <- GridRainAllDataout
 rm(flow_rain_maxT_weekly)
+rm(CC)
 
 nc <- 10 # number of cores
 n <- 10 # number of SCE runs
-registerDoMC(cores=nc) 
+registerDoParallel(cores=nc) 
 
 ## 1. Optimisation functions
 # SCEOptim  function
@@ -57,7 +61,7 @@ Ofit <- function(mod,Store) {
 # Write a function to calibrate each station
 Calib.fun <- function(flow,Rain,maxT,station,nr=10,
                       start.t="1970-01-01", 
-                      end.t="1979-12-31") {
+                      end.t="2010-12-31") {
   # flow is the flow data (as a zoo series)
   # Rain is the rainfall data (as a zoo series)
   # maxT is maximum temperature as a zoo series
@@ -76,7 +80,7 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
   # Define the model
   mod.Q <- hydromad(DATA=data.cal,
             sma = "gr4j", routing = "gr4jrouting", 
-            x1 = c(20,3000), x2 = c(-50,30), x3 = c(20,1000), x4 = c(0.5,20), 
+            x1 = c(20,4000), x2 = c(-50,30), x3 = c(20,1000), x4 = c(0.5,20), 
             etmult=c(0.01,0.5), return_state=TRUE)
   
   # Change hmadstat("rel.bias")
@@ -120,18 +124,18 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
 
 
 # 3. Now run over the stations
-for (i in seq_along(Stations[,1])) {
+for (i in seq_along(flow_stns)) {
   #i <- 1 # testing
   # load(paste(Today,"CalibInputData.Rdata",sep="_"))
   # Create storage frames
   # Run the calibration												
-  Output <- Calib.fun(flow = flow_zoo[,i], 
+  Output <- Calib.fun(flow = flow_zoo[,i],
                       Rain = zoo(GridRain[GridRain$Station==Stations[i,1],2],
                                  order.by=time(rain_zoo)),
                       maxT = maxT_zoo[,i], 
-                      station = Stations[i,1], nr=n)
+                      station = flow_stns[i], nr=n)
   save(Output,
-       file = paste(Today,paste(Stations[i,1], 
+       file = paste(Today,paste(colnames(flow_stns[i]), 
                                 "GR4JGridCalibOutput.Rdata", sep=""),sep="_"))
   rm(Output)
 }

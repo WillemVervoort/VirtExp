@@ -390,6 +390,7 @@ weekGridRainAllDataout <- cbind(flow_rain_maxT_weekly,gridRain_weekly_stack[,4])
 colnames(weekGridRainAllDataout)[7] <- "gridRain"
 ```
 
+
 ### Write data frames out as Rdata and csv
 
 This section creates the on disk csv files and Rdata objects to be used in the rest of the research.

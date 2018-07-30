@@ -159,8 +159,9 @@ print(p)
 
 There clearly is a large difference between the non-parametric epsilon calculated from the gridded data, compared to epsilon calculated from the station data. The station data is much more in alignment with the original paper (Chiew, 2006), while the gridded data is clearly much smoother and therefore does not indicate the amplifications that are visible in the station data.
 
+
 # Rainfall runoff plots for annual data  
-For a sanity check we plot the rainfall against the runoff data to understand the runoff coefficients.
+For a sanity check we plot the rainfall against the runoff data to understand the runoff coefficients. 
 
 ## Station data
 
@@ -232,12 +233,15 @@ print(p)
 ```
 
 
-## Saving output for later
-
 ```{r saving}
 # Save the data
 write.csv(RR_df,
       file="Data/RainfallRunoff.csv",row.names=F)
+```
+
+## Saving output for later
+
+```{r saving}
 # save output for document 7
 write.csv(plot.df,"Data/non_par_eta.csv", row.names=F)
 ```

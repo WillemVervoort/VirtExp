@@ -14,23 +14,12 @@
 # compile the cpp code
 old_dir <- getwd()
 setwd(rcode_dir)
-sourceCpp("SimhydC2002.cpp") # Chiew et al. 2002
+#require(Rcpp)
+#sourceCpp("SimhydC2002.cpp") # Chiew et al. 2002
 sourceCpp("SimhydC2009.cpp") # Chiew et al. 2009 and Chiew 2006
-sourceCpp("Simhyd_eWater.cpp") # eWater and SOURCE version
-sourceCpp("SimhydMJEq.cpp") # rewrite of Min Ju Shin's version
+#sourceCpp("Simhyd_eWater.cpp") # eWater and SOURCE version
+#sourceCpp("SimhydMJEq.cpp") # rewrite of Min Ju Shin's version
 setwd(old_dir)
-
-
-#sourceCpp("/home/562/wxv562/MD_ProjectRCode/SimhydC2002.cpp") # Chiew et al. 2002
-#sourceCpp("/home/562/wxv562/MD_ProjectRCode/SimhydC2009.cpp") # Chiew et al. 2009 and Chiew 2006
-#sourceCpp("/home/562/wxv562/MD_ProjectRCode/Simhyd_eWater.cpp") # eWater and SOURCE version
-#sourceCpp("/home/562/wxv562/MD_ProjectRCode/SimhydMJEq.cpp") # rewrite of Min Ju Shin's version
-
-# sourceCpp("/g/data1/rr9/wxv562/MD_ProjectRCode/SimhydC2002.cpp") # Chiew et al. 2002
-# sourceCpp("/g/data1/rr9/wxv562/MD_ProjectRCode/SimhydC2009.cpp") # Chiew et al. 2009 and Chiew 2006
-# sourceCpp("/g/data1/rr9/wxv562/MD_ProjectRCode/Simhyd_eWater.cpp") # eWater and SOURCE version
-# sourceCpp("/g/data1/rr9/wxv562/MD_ProjectRCode/SimhydMJEq.cpp") # rewrite of Min Ju Shin's version
-
 
 
 ## SimHyd_C2009 model
@@ -38,7 +27,7 @@ simhyd_C2009.sim <-
     function(DATA,
              INSC,COEFF,
              SQ,
-             SMSC, SUB, CRAK, K, 
+             SMSC, SUB, CRAK, K,
              etmult = 0.15,
              return_state = FALSE)
 
@@ -49,7 +38,7 @@ simhyd_C2009.sim <-
   #  SMSC = Soil Moisture Storage Capacity
   # SUB constant of proportionality in interflow equation
   # CRAK constant of proportionality in groundwater rechareg equation
-  # K baseflow linear recession parameter    
+  # K baseflow linear recession parameter
 	# etmult = added parameter to convert maxT to PET
   # return_state, whether or not to return all components
 
@@ -66,7 +55,7 @@ simhyd_C2009.sim <-
 
     xpar <-
         c(INSC, COEFF, SQ, SMSC, SUB, CRAK, K)
- 
+
     inAttr <- attributes(DATA[,1])
     DATA <- as.ts(DATA)
 
@@ -80,7 +69,7 @@ simhyd_C2009.sim <-
     COMPILED <- (hydromad.getOption("pure.R.code") == FALSE)
     if (COMPILED) {
     # run the cpp version
-      ans <- simhydC2009_sim(P, E, INSC, COEFF, SQ,SMSC, 
+      ans <- simhydC2009_sim(P, E, INSC, COEFF, SQ,SMSC,
                  SUB,CRAK,K)
       U <- ans$U
       aET <- ans$ET
@@ -147,7 +136,7 @@ simhyd_C2009.sim <-
   		SMS[t] <- SMS[t] - ET[t]
   		#print(SMS[t])
   		# Calculate GW storage
-  		GW[t] <- GW[t-1] + REC[t] 
+  		GW[t] <- GW[t-1] + REC[t]
   		# calculate baseflow
   		BAS[t] <- K*GW[t-1]
   		GW[t] <- GW[t] - BAS[t]
@@ -209,10 +198,10 @@ simhyd_C2002.sim <-
   function(DATA,
            INSC,COEFF,
            SQ,
-           SMSC, SUB, CRAK, K, 
+           SMSC, SUB, CRAK, K,
            etmult = 0.15,
            return_state = FALSE)
-    
+
     # See Figure on page 339 in Chiew et al. 2002
     # INSC interception store capacity (mm)
     # COEFF maximum infiltration loss
@@ -220,9 +209,9 @@ simhyd_C2002.sim <-
     #  SMSC = Soil Moisture Storage Capacity
     # SUB constant of proportionality in interflow equation
     # CRAK constant of proportionality in groundwater rechareg equation
-    # K baseflow linear recession parameter    
+    # K baseflow linear recession parameter
     # etmult = added parameter to convert maxT to PET
-    
+
   {
     stopifnot(c("P","E") %in% colnames(DATA))
     ## check values
@@ -233,24 +222,24 @@ simhyd_C2002.sim <-
     stopifnot(SUB >= 0)
     stopifnot(CRAK >= 0)
     stopifnot(K >= 0)
-    
+
     xpar <-
       c(INSC, COEFF, SQ, SMSC, SUB, CRAK, K)
-    
+
     inAttr <- attributes(DATA[,1])
     DATA <- as.ts(DATA)
-    
+
     P <- DATA[,"P"]
     E <- etmult*DATA[,"E"]
     ## skip over missing values
     bad <- is.na(P) | is.na(E)
     P[bad] <- 0
     E[bad] <- 0
-    
+
     COMPILED <- (hydromad.getOption("pure.R.code") == FALSE)
     if (COMPILED) {
       # run the cpp version
-      ans <- simhydC2002_sim(P, E, INSC, COEFF, SQ,SMSC, 
+      ans <- simhydC2002_sim(P, E, INSC, COEFF, SQ,SMSC,
                               SUB,CRAK,K)
       U <- ans$U
       aET <- ans$ET
@@ -304,7 +293,7 @@ simhyd_C2002.sim <-
         ET[t] <- min(10*SMS[t]/SMSC,E[t])
         SMS[t] <- SMS[t] - ET[t]
        # Calculate GW storage
-        GW[t] <- GW[t-1] + REC[t] 
+        GW[t] <- GW[t-1] + REC[t]
         # calculate baseflow
         BAS[t] <- K*GW[t-1]
 		GW[t] <- GW[t] - BAS[t]
@@ -367,10 +356,10 @@ simhyd_eWater.sim <-
            pFrac = 1, impTh = 1,
            INSC,COEFF,
            SQ,
-           SMSC, SUB, CRAK, K, 
+           SMSC, SUB, CRAK, K,
            etmult = 0.15,
            return_state = FALSE)
-    
+
     # Same as Chiew et al. 2002 except for impervious
     # INSC interception store capacity (mm)
     # COEFF maximum infiltration loss
@@ -378,9 +367,9 @@ simhyd_eWater.sim <-
     #  SMSC = Soil Moisture Storage Capacity
     # SUB constant of proportionality in interflow equation
     # CRAK constant of proportionality in groundwater rechareg equation
-    # K baseflow linear recession parameter    
+    # K baseflow linear recession parameter
     # etmult = added parameter to convert maxT to PET
-    
+
   {
     stopifnot(c("P","E") %in% colnames(DATA))
     ## check values
@@ -391,25 +380,25 @@ simhyd_eWater.sim <-
     stopifnot(SUB >= 0)
     stopifnot(CRAK >= 0)
     stopifnot(K >= 0)
-    
+
     xpar <-
       c(pFrac, impTh, INSC, COEFF, SQ, SMSC, SUB, CRAK, K)
-    
+
     inAttr <- attributes(DATA[,1])
     DATA <- as.ts(DATA)
-    
+
     P <- DATA[,"P"]
     E <- etmult*DATA[,"E"]
     ## skip over missing values
     bad <- is.na(P) | is.na(E)
     P[bad] <- 0
     E[bad] <- 0
-    
+
     COMPILED <- (hydromad.getOption("pure.R.code") == FALSE)
     if (COMPILED) {
       # run the cpp version
       ans <- simhydeWater_sim(P, E, pFrac, impTh,
-                              INSC, COEFF, SQ,SMSC, 
+                              INSC, COEFF, SQ,SMSC,
                               SUB,CRAK,K)
       U <- ans$U
       aET <- ans$ET
@@ -454,7 +443,7 @@ simhyd_eWater.sim <-
         RMO[t] <- min(COEFF*exp(-SQ*SMS[t-1]/SMSC),INR[t])
         # calculate direct (infiltration excess) runoff
         IRUN[t] <- INR[t] - RMO[t]
-        # equation 5 Interflow runoff 
+        # equation 5 Interflow runoff
         SRUN[t] = SUB*SMS[t-1]/SMSC*RMO[t]
 		# equation 6 infiltration after interflow
 		# (INF[t] - SRUN[t]
@@ -531,170 +520,170 @@ simhyd_eWater.sim <-
   ans
 }
 
-# Mun-Ju/Felix Andrews equivalent
-simhyd_MJeq.sim <- function (DATA, rainfallInterceptionStoreCapacity = 1.5, infiltrationCoefficient = 200, 
-                             infiltrationShape = 3, soilMoistureStoreCapacity = 320, interflowCoefficient = 0.1, 
-                             rechargeCoefficient = 0.2, baseflowCoefficient = 0.3, perviousFraction = 0.9, 
-                             imperviousThreshold = 1, groundwater_0 = 5, soilMoistureStore_0 = soilMoistureStoreCapacity * 
-                               0.33, CONST_FOR_SOIL_ET = 10.0, return_state = FALSE, pure.R.code = FALSE) 
-{
-  inAttr <- attributes(DATA[, 1])
-  DATA <- as.ts(DATA)
-  stopifnot(c("P", "E") %in% colnames(DATA))
-  stopifnot(rainfallInterceptionStoreCapacity >= 0)
-  stopifnot(infiltrationCoefficient >= 0)
-  stopifnot(infiltrationShape >= 0)
-  stopifnot(soilMoistureStoreCapacity >= 0)
-  stopifnot(interflowCoefficient >= 0)
-  stopifnot(rechargeCoefficient >= 0)
-  stopifnot(baseflowCoefficient >= 0)
-  stopifnot(perviousFraction >= 0)
-  stopifnot(imperviousThreshold >= 0)
-  P <- DATA[, "P"]
-  E <- DATA[, "E"]
-  bad <- is.na(P) | is.na(E)
-  P[bad] <- 0
-  E[bad] <- 0
-  X <- P
-  COMPILED <- (hydromad.getOption("pure.R.code") == FALSE)
-  if (COMPILED) {
-    ans <- simhydMJEQ_sim(P,E,rainfallInterceptionStoreCapacity,
-                          infiltrationCoefficient,
-                          infiltrationShape,
-                          soilMoistureStoreCapacity,
-                          interflowCoefficient,
-                          rechargeCoefficient,
-                          baseflowCoefficient,
-                          perviousFraction,
-                          imperviousThreshold,
-                          groundwater_0,
-                          soilMoistureStore_0,
-                          CONST_FOR_SOIL_ET)
-      X <- ans$X
-    if (return_state==T) {
-      aET <- ans$aET
-      imperviousRunoff = ans$imperviousRunoff
-      interceptionET = ans$interceptionET
-      throughfall = ans$throughfall
-      infiltrationXSRunoff = ans$infiltrationXSRunoff
-      infiltration = ans$infiltration
-      interflowRunoff = ans$interflowRunoff
-      infiltrationAfterInterflow = ans$infiltrationAfterInterflow
-      soilMoistureFraction = ans$soilMoistureFraction
-      soilMoistureStore = ans$soilMoistureStore
-      soilInput = ans$soilInput
-      recharge = ans$recharge
-      groundwater = ans$groundwater
-      soilET = ans$soilET
-      baseflow = ans$baseflow
-    }
-   } else {
-	 interceptionET <- infiltration <- throughfall <- infiltrationXSRunoff <- imperviousRunoff <- infiltrationAfterInterflow <- NA
-      totalET <- soilET <- imperviousET <- interFlowRunoff <- recharge <- soilInput <- baseflow <- interception <- NA
-      soilMoistureStore <- groundwater <- rep(0,length(P))
-    groundwater[1] <- groundwater_0
-    soilMoistureStore[1] <- soilMoistureStore_0
-    for (t in seq(2, length(P))) {
-      perviousIncident <- P[t]
-      imperviousIncident <- P[t]
-	  # equation 1
-      imperviousET[t] <- min(imperviousThreshold, imperviousIncident)
-      imperviousRunoff[t] <- imperviousIncident - imperviousET
-	  # equation 2
-      interceptionET[t] <- min(perviousIncident, min(E[t], 
-                                                  rainfallInterceptionStoreCapacity))
-      throughfall[t] <- perviousIncident - interceptionET
-      soilMoistureFraction <- soilMoistureStore[t-1]/soilMoistureStoreCapacity
-		# equation 3
-      infiltrationCapacity <- infiltrationCoefficient * 
-        exp(-infiltrationShape * soilMoistureFraction)
-		# equation 4
-      infiltration[t] <- min(throughfall[t], infiltrationCapacity) 
-      infiltrationXSRunoff[t] <- throughfall[t] - infiltration[t]
-		# equation 5
-      interflowRunoff[t] <- interflowCoefficient * soilMoistureFraction * 
-        infiltration[t]
-		# equation 6
-		infiltrationAfterInterflow[t] <- infiltration[t] - interflowRunoff[t]
-		# equation 7
-		recharge[t] <- rechargeCoefficient * soilMoistureFraction * 
-        infiltrationAfterInterflow[t]
-		# equation 8
-		soilInput[t] <- infiltrationAfterInterflow[t] - recharge[t]
-      soilMoistureStore[t] <- soilMoistureStore[t-1] + soilInput[t]
-      soilMoistureFraction <- soilMoistureStore[t]/soilMoistureStoreCapacity
-      groundwater[t] <- groundwater[t-1] + recharge[t]
-      if (soilMoistureFraction > 1) {
-        groundwater[t] <- groundwater[t] + soilMoistureStore[t] - 
-          soilMoistureStoreCapacity
-        soilMoistureStore[t] <- soilMoistureStoreCapacity
-        soilMoistureFraction <- 1
-      }
-      baseflowRunoff[t] <- baseflowCoefficient * groundwater[t]
-      groundwater[t] <- groundwater[t] - baseflowRunoff[t]
-      soilET[t] <- min(soilMoistureStore[t], min(E[t] - interceptionET[t], 
-               soilMoistureFraction * CONST_FOR_SOIL_ET))
-      soilMoistureStore[t] <- soilMoistureStore[t] - soilET[t]
-      eventRunoff <- (1 - perviousFraction) * imperviousRunoff[t] + 
-        perviousFraction * (infiltrationXSRunoff[t] + interflowRunoff[t])
-      totalET[t] = (1 - perviousFraction) * imperviousET[t] + perviousFraction * (interceptionET[t] + soilET[t]);
-      totalRunoff <- eventRunoff + perviousFraction * baseflowRunoff[t]
-      X[t] <- totalRunoff
-    }
-    aET <- totalET
-   }
-  # reset the missing values
-  X[bad] <- NA
-  if (return_state==T) {
-    aET[bad] <- NA
-    imperviousRunoff[bad] <- NA
-    interceptionET[bad] <- NA
-    infiltration[bad] <- NA
-    throughfall[bad] <- NA
-    infiltrationXSRunoff[bad] <- NA
-    interflowRunoff[bad] <- NA
-    infiltrationAfterInterflow[bad] <- NA
-    soilET[bad] <- NA
-    recharge[bad] <- NA
-    soilInput[bad] <- NA
-    baseflow[bad] <- NA
-    soilMoistureStore[bad] <- NA
-    groundwater[bad] <- NA
-  }
-# pass on attributes  
- attributes(X) <- inAttr
- ans <- X
- if (return_state==T) {
-   attributes(aET) <- inAttr
-   attributes(imperviousRunoff) <- inAttr
-    attributes(interceptionET) <- inAttr
-    attributes(infiltration) <- inAttr
-    attributes(throughfall) <- inAttr
-    attributes(infiltrationXSRunoff) <- inAttr
-    attributes(interflowRunoff) <- inAttr
-    attributes(infiltrationAfterInterflow) <- inAttr
-    attributes(soilET) <- inAttr
-    attributes(recharge) <- inAttr
-    attributes(soilInput) <- inAttr
-    attributes(baseflow) <- inAttr
-    attributes(soilMoistureStore) <- inAttr
-    attributes(groundwater) <- inAttr
-    ans <- cbind(U=X,aET=aET, throughfall = throughfall,
-				   imperviousRunoff = imperviousRunoff,
-				   interceptionET = interceptionET,
-				   infiltration = infiltration,
-                   infiltrationXSRunoff = infiltrationXSRunoff,
-                   interflowRunoff = interflowRunoff,
-				   infiltrationAfterInterflow = infiltrationAfterInterflow,
-				   soilInput = soilInput,
-				   soilMoistureStore = soilMoistureStore,
-				   recharge = recharge,
- 				   groundwater=groundwater,
-				   soilET = soilET,
-          baseflow = baseflow)
- } 
- ans
-}
+# # Mun-Ju/Felix Andrews equivalent
+# simhyd_MJeq.sim <- function (DATA, rainfallInterceptionStoreCapacity = 1.5, infiltrationCoefficient = 200,
+#                              infiltrationShape = 3, soilMoistureStoreCapacity = 320, interflowCoefficient = 0.1,
+#                              rechargeCoefficient = 0.2, baseflowCoefficient = 0.3, perviousFraction = 0.9,
+#                              imperviousThreshold = 1, groundwater_0 = 5, soilMoistureStore_0 = soilMoistureStoreCapacity *
+#                                0.33, CONST_FOR_SOIL_ET = 10.0, return_state = FALSE, pure.R.code = FALSE)
+# {
+#   inAttr <- attributes(DATA[, 1])
+#   DATA <- as.ts(DATA)
+#   stopifnot(c("P", "E") %in% colnames(DATA))
+#   stopifnot(rainfallInterceptionStoreCapacity >= 0)
+#   stopifnot(infiltrationCoefficient >= 0)
+#   stopifnot(infiltrationShape >= 0)
+#   stopifnot(soilMoistureStoreCapacity >= 0)
+#   stopifnot(interflowCoefficient >= 0)
+#   stopifnot(rechargeCoefficient >= 0)
+#   stopifnot(baseflowCoefficient >= 0)
+#   stopifnot(perviousFraction >= 0)
+#   stopifnot(imperviousThreshold >= 0)
+#   P <- DATA[, "P"]
+#   E <- DATA[, "E"]
+#   bad <- is.na(P) | is.na(E)
+#   P[bad] <- 0
+#   E[bad] <- 0
+#   X <- P
+#   COMPILED <- (hydromad.getOption("pure.R.code") == FALSE)
+#   if (COMPILED) {
+#     ans <- simhydMJEQ_sim(P,E,rainfallInterceptionStoreCapacity,
+#                           infiltrationCoefficient,
+#                           infiltrationShape,
+#                           soilMoistureStoreCapacity,
+#                           interflowCoefficient,
+#                           rechargeCoefficient,
+#                           baseflowCoefficient,
+#                           perviousFraction,
+#                           imperviousThreshold,
+#                           groundwater_0,
+#                           soilMoistureStore_0,
+#                           CONST_FOR_SOIL_ET)
+#       X <- ans$X
+#     if (return_state==T) {
+#       aET <- ans$aET
+#       imperviousRunoff = ans$imperviousRunoff
+#       interceptionET = ans$interceptionET
+#       throughfall = ans$throughfall
+#       infiltrationXSRunoff = ans$infiltrationXSRunoff
+#       infiltration = ans$infiltration
+#       interflowRunoff = ans$interflowRunoff
+#       infiltrationAfterInterflow = ans$infiltrationAfterInterflow
+#       soilMoistureFraction = ans$soilMoistureFraction
+#       soilMoistureStore = ans$soilMoistureStore
+#       soilInput = ans$soilInput
+#       recharge = ans$recharge
+#       groundwater = ans$groundwater
+#       soilET = ans$soilET
+#       baseflow = ans$baseflow
+#     }
+#    } else {
+# 	 interceptionET <- infiltration <- throughfall <- infiltrationXSRunoff <- imperviousRunoff <- infiltrationAfterInterflow <- NA
+#       totalET <- soilET <- imperviousET <- interFlowRunoff <- recharge <- soilInput <- baseflow <- interception <- NA
+#       soilMoistureStore <- groundwater <- rep(0,length(P))
+#     groundwater[1] <- groundwater_0
+#     soilMoistureStore[1] <- soilMoistureStore_0
+#     for (t in seq(2, length(P))) {
+#       perviousIncident <- P[t]
+#       imperviousIncident <- P[t]
+# 	  # equation 1
+#       imperviousET[t] <- min(imperviousThreshold, imperviousIncident)
+#       imperviousRunoff[t] <- imperviousIncident - imperviousET
+# 	  # equation 2
+#       interceptionET[t] <- min(perviousIncident, min(E[t],
+#                                                   rainfallInterceptionStoreCapacity))
+#       throughfall[t] <- perviousIncident - interceptionET
+#       soilMoistureFraction <- soilMoistureStore[t-1]/soilMoistureStoreCapacity
+# 		# equation 3
+#       infiltrationCapacity <- infiltrationCoefficient *
+#         exp(-infiltrationShape * soilMoistureFraction)
+# 		# equation 4
+#       infiltration[t] <- min(throughfall[t], infiltrationCapacity)
+#       infiltrationXSRunoff[t] <- throughfall[t] - infiltration[t]
+# 		# equation 5
+#       interflowRunoff[t] <- interflowCoefficient * soilMoistureFraction *
+#         infiltration[t]
+# 		# equation 6
+# 		infiltrationAfterInterflow[t] <- infiltration[t] - interflowRunoff[t]
+# 		# equation 7
+# 		recharge[t] <- rechargeCoefficient * soilMoistureFraction *
+#         infiltrationAfterInterflow[t]
+# 		# equation 8
+# 		soilInput[t] <- infiltrationAfterInterflow[t] - recharge[t]
+#       soilMoistureStore[t] <- soilMoistureStore[t-1] + soilInput[t]
+#       soilMoistureFraction <- soilMoistureStore[t]/soilMoistureStoreCapacity
+#       groundwater[t] <- groundwater[t-1] + recharge[t]
+#       if (soilMoistureFraction > 1) {
+#         groundwater[t] <- groundwater[t] + soilMoistureStore[t] -
+#           soilMoistureStoreCapacity
+#         soilMoistureStore[t] <- soilMoistureStoreCapacity
+#         soilMoistureFraction <- 1
+#       }
+#       baseflowRunoff[t] <- baseflowCoefficient * groundwater[t]
+#       groundwater[t] <- groundwater[t] - baseflowRunoff[t]
+#       soilET[t] <- min(soilMoistureStore[t], min(E[t] - interceptionET[t],
+#                soilMoistureFraction * CONST_FOR_SOIL_ET))
+#       soilMoistureStore[t] <- soilMoistureStore[t] - soilET[t]
+#       eventRunoff <- (1 - perviousFraction) * imperviousRunoff[t] +
+#         perviousFraction * (infiltrationXSRunoff[t] + interflowRunoff[t])
+#       totalET[t] = (1 - perviousFraction) * imperviousET[t] + perviousFraction * (interceptionET[t] + soilET[t]);
+#       totalRunoff <- eventRunoff + perviousFraction * baseflowRunoff[t]
+#       X[t] <- totalRunoff
+#     }
+#     aET <- totalET
+#    }
+#   # reset the missing values
+#   X[bad] <- NA
+#   if (return_state==T) {
+#     aET[bad] <- NA
+#     imperviousRunoff[bad] <- NA
+#     interceptionET[bad] <- NA
+#     infiltration[bad] <- NA
+#     throughfall[bad] <- NA
+#     infiltrationXSRunoff[bad] <- NA
+#     interflowRunoff[bad] <- NA
+#     infiltrationAfterInterflow[bad] <- NA
+#     soilET[bad] <- NA
+#     recharge[bad] <- NA
+#     soilInput[bad] <- NA
+#     baseflow[bad] <- NA
+#     soilMoistureStore[bad] <- NA
+#     groundwater[bad] <- NA
+#   }
+# # pass on attributes
+#  attributes(X) <- inAttr
+#  ans <- X
+#  if (return_state==T) {
+#    attributes(aET) <- inAttr
+#    attributes(imperviousRunoff) <- inAttr
+#     attributes(interceptionET) <- inAttr
+#     attributes(infiltration) <- inAttr
+#     attributes(throughfall) <- inAttr
+#     attributes(infiltrationXSRunoff) <- inAttr
+#     attributes(interflowRunoff) <- inAttr
+#     attributes(infiltrationAfterInterflow) <- inAttr
+#     attributes(soilET) <- inAttr
+#     attributes(recharge) <- inAttr
+#     attributes(soilInput) <- inAttr
+#     attributes(baseflow) <- inAttr
+#     attributes(soilMoistureStore) <- inAttr
+#     attributes(groundwater) <- inAttr
+#     ans <- cbind(U=X,aET=aET, throughfall = throughfall,
+# 				   imperviousRunoff = imperviousRunoff,
+# 				   interceptionET = interceptionET,
+# 				   infiltration = infiltration,
+#                    infiltrationXSRunoff = infiltrationXSRunoff,
+#                    interflowRunoff = interflowRunoff,
+# 				   infiltrationAfterInterflow = infiltrationAfterInterflow,
+# 				   soilInput = soilInput,
+# 				   soilMoistureStore = soilMoistureStore,
+# 				   recharge = recharge,
+#  				   groundwater=groundwater,
+# 				   soilET = soilET,
+#           baseflow = baseflow)
+#  }
+#  ans
+# }
 
 
 # Routing based on Muskinghum
@@ -740,11 +729,11 @@ simhydrouting.sim <- function(U, DELAY=1, X_m=0.2,
   return(X)
 }    
 
-# define ranges of parameters
-simhyd_C2009.ranges <- simhyd_C2002.ranges  <- function() 
+define ranges of parameters
+simhyd_C2009.ranges <- simhyd_C2002.ranges  <- function()
   list(INSC = c(0,50),
        COEFF = c(0.0,400),
-       SQ = c(0,10), 
+       SQ = c(0,10),
        SMSC = c(1,500),
        SUB = c(0.0,1),
        CRAK = c(0.0,1),
@@ -769,13 +758,13 @@ simhyd_eWater.ranges <- function()
        etmult = c(0.01,1))
 
 
-simhyd_MJeq.ranges <- function() 
-  list(rainfallInterceptionStoreCapacity = c(0, 5),
-           infiltrationCoefficient = c(0, 400),
-           infiltrationShape = c(0, 10),
-           soilMoistureStoreCapacity = c(1, 500),
-           interflowCoefficient = c(0, 1),
-           rechargeCoefficient = c(0, 1),
-           baseflowCoefficient = c(0, 1),
-           perviousFraction = c(0, 1),
-           imperviousThreshold = c(0, 5))
+# simhyd_MJeq.ranges <- function() 
+#   list(rainfallInterceptionStoreCapacity = c(0, 5),
+#            infiltrationCoefficient = c(0, 400),
+#            infiltrationShape = c(0, 10),
+#            soilMoistureStoreCapacity = c(1, 500),
+#            interflowCoefficient = c(0, 1),
+#            rechargeCoefficient = c(0, 1),
+#            baseflowCoefficient = c(0, 1),
+#            perviousFraction = c(0, 1),
+#            imperviousThreshold = c(0, 5))
