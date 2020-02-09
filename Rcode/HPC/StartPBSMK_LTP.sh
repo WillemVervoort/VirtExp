@@ -3,7 +3,7 @@
 #PBS -l ncpus=13
 #PBS -l walltime=250:00:00
 #PBS -l mem=32GB
-#PBS -N MannKendall
+#PBS -N MannKendall_restart
 #PBS -P RDS-FSC-CCH-RW
 #PBS -m ae
 #PBS -M willem.vervoort@sydney.edu.au

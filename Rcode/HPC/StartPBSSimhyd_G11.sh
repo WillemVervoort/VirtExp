@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #PBS -l ncpus=10
-#PBS -l walltime=110:00:00
+#PBS -l walltime=220:00:00
 #PBS -l mem=32GB
-#PBS -N Simhyd
+#PBS -N Simhyd11
 #PBS -P RDS-FSC-CCH-RW
 #PBS -m ae
 #PBS -M willem.vervoort@sydney.edu.au

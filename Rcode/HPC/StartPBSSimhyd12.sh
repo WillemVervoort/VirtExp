@@ -11,4 +11,4 @@
 
 module load R/3.4.0
 
-R --vanilla </project/RDS-FSC-CCH-RW/MDProjectdata/HPCSimHydmodelling12.R> Shell_output.out
+R --vanilla </project/RDS-FSC-CCH-RW/MDProjectdata/scripts/HPCSimHydmodelling12.R> Shell_output.out

@@ -10,7 +10,9 @@ output:
 ---
 ```{r setup, warning=F, message=F}
 # root dir
-knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir = 
+                       "D:/Cloudstor/Virtual Experiments/VirtExp")
+#"C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
@@ -24,7 +26,7 @@ library(Kendall)
 library(mgcv)
 ```
 
-This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository.
+This rmarkdown document and the resulting pdf are stored on [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository.
 
 # Introduction
 This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology. This is the seventh part of the series that performs the Mann-Kendall and gam trend analysis on the residuals calculated in part 6, as well as comparing the non-parametric $\epsilon$ from the fifth part of the series with the numerical modelling $\epsilon$ following Chiew (2006).
@@ -34,16 +36,9 @@ Australia, Hydrological Sciences Journal, 51:4, 613-625, DOI: 10.1623/hysj.51.4.
 
 This script also generates final versions of *Figure 3* and *Figure 9* in the manuscript. 
 
-To recap, we have residuals for predictions between 1980 - 2010 of calibrated models across 13 catchments (calibrated on 1970 - 1980). However, there are results for both station rainfall and gridded rainfall for both the SimHyd and GR4J models to make sure there is no difference between these. For all the fits, performances were extracted and initial plots made in part 6 of the series. It is clear from those plots (which will be partly repeated here) that SimHyd performed more poorly than GR4J and that the models using the gridded rainfall data performed consistently worse compared to the station rainfall data.
-As a result, the manuscript concentrates only on the station rainfall data as this gives the best model performances across the catchments.
+To recap, we have residuals for predictions between 1970 - 2010 of calibrated models across 13 catchments (calibrated on 1970 - 2010). However, there are results for both station rainfall and gridded rainfall for both the SimHyd and GR4J models to make sure there is no difference between these. For all the fits, performances were extracted and initial plots made in part 6 of the series. It is clear from those plots (which will be partly repeated here) that SimHyd performed more poorly than GR4J.
 
-The overall performance of the models across the catchments in this analysis are much worse than the performances reported in the orginal paper (Chiew, 2006), but this could be due to several major differences:  
-
-- Monthly data in Chiew (2006), daily data in this paper  
-- Several much larger catchments  
-- Silo gridded monthly rainfall
-
-In particular the difference between daily and monthly data would have made a major difference in the calibration performance. However, overall, the calibration performance needs to be taken into account in relation to the Mann-Kendall trends in the residuals and the derived $\epsilon$.
+The difference between using daily or monthly data would have made a major difference in the calibration performance. However, overall, the calibration performance needs to be taken into account in relation to the Mann-Kendall trends in the residuals and the derived $\epsilon$.
 
 Apart from running a Mann Kendall trend analysis on the residuals, this document also fits a linear trend using GAMM as a comparison to the Mann-Kendall
 
@@ -58,17 +53,22 @@ Results <- data.frame(station=character(length=10),trend=numeric(length=10),
 
 # Mann Kendall and GAMM trend analysis of the residuals
 
-## GR4J model results with station data
+## model results with station data
+
+This has been revised in 2019 and runs LMKTP on the residuals rather than just simply Mann Kendall.
 
 ```{r GR4J_residuals_MK}
+
 # read in the residual data list from part 6 for all 
 load(file="../ProjectData/residuals/GR4JHPCresiduals.Rdata")
 
 GR4J_results <- list()
 
 # also read in the model performance from part 6 (OutputMod)
-load("../ProjectData/ModelResults.Rdata")
-Modelperf <- OutputMod[OutputMod$model=="GR4JStationData",] 
+load("../ProjectData/ModelResults2.Rdata")
+Modelperf <- OutputMod2[OutputMod2$model=="GR4J Station Rainfall Data",] 
+
+
 
 # run through a loop
 for (i in seq_along(Stations[,1])){
@@ -102,7 +102,7 @@ load(file="../ProjectData/residuals/GR4JGridHPCresiduals.Rdata")
 
 GR4JGrid_results <- list()
 # from section 6 model performance
-Modelperf <- OutputMod[OutputMod$model=="GR4JGriddedData",] 
+Modelperf <- OutputMod2[OutputMod2$model=="GR4J Gridded Rainfall Data",] 
 
 
 # run through a loop
@@ -138,7 +138,7 @@ load(file="../ProjectData/residuals/SimHydHPCresiduals.Rdata")
 Simhyd_results <- list()
 
 # from section 6 model performance
-Modelperf <- OutputMod[OutputMod$model=="SimHydStationData",] 
+Modelperf <- OutputMod2[OutputMod2$model=="SimHyd Station Rainfall Data",] 
 
 
 # run through a loop
@@ -174,7 +174,7 @@ load(file="../ProjectData/residuals/SimHydGridHPCresiduals.Rdata")
 SimhydGrid_results <- list()
 
 # from section 6 model performance
-Modelperf <- OutputMod[OutputMod$model=="SimHydGridStationData",] 
+Modelperf <- OutputMod2[OutputMod2$model=="SimHyd Gridded Rainfall Data",] 
 
 
 # run through a loop
@@ -260,71 +260,6 @@ This plot suggests that there is no real relationship between the model performa
 
 \newpage
 
-
-### Figure 9
-
-```{r Figure9, fig.width=8, fig.height = 11, fig.cap="Analysis of residual trends between modelled and observed data for models calibrated on 1970 - 1979 and predicting 1980 - 2010. The level of gray colour indicates the significance, with dark coloured distributions being more significant. Boxplots represent the range of results from the 10 shuffled complex evolution calibrations."}
-# Now plot the actual trends
-p <- ggplot(plot.df, aes(x = Station, y = trend)) +
-  scale_colour_continuous(name="significance",low="gray50", high="black")  +
-  geom_boxplot(coef=0.5) +  facet_wrap(~ Model + Method,ncol=1)
-p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
-                      aes(col=sig),lwd=2)
-
-p <- p + ggtitle("Residual trends: predicted - observed 1980 - 2010") +
-  theme(plot.title = element_text(lineheight=.8, face="bold"))+
-  xlab("Station") +
-  theme(axis.title.x = element_text(face="bold",  size=16),
-        axis.text.x  = element_text(size=12)) +
-  ylab("Trend estimate or Mann Kendall tau") +
-  theme(axis.title.y = element_text(face="bold",  size=16),
-        axis.text.y  = element_text(size=12)) +
-  theme(legend.text = element_text(size = 12))+
-  theme(legend.title = element_text(size=14, face="bold")) +
-  theme(strip.text.x = element_text(size=10))
-
-#save(p,file=paste(Today,"_ModelResidualTrendPlot.RData"))
-p
-```
-
-This figure suggests that the overall slopes are small, and those close to 0 are not significant, which is the same as the earlier table. 
-
-#### Figure 9 publication quality
-For this only plot the results from the non-gridded rainfall as the performance from the gridded rainfall modelling is poor.
-
-```{r figure9_pub}
-plot.df1 <- plot.df[-(grep("GR4JGrid",plot.df$Model)),]
-plot.df1 <- plot.df1[-(grep("SimHydGrid",plot.df1$Model)),]
-
-p1 <- ggplot(plot.df1, aes(x = Station, y = trend)) +
-  scale_colour_continuous(name="Significance\n",
-                          low="gray50", high="black")  +
-  geom_boxplot(coef=0.5) +  facet_wrap(~ Model + Method,ncol=1,
-                               scales = "free")
-p1 <- p1 + stat_summary(fun.y=mean, geom="point", shape=16,
-                    aes(col=sig),lwd=2)
-
-p1 <- p1 +   xlab("Station") +
-  theme(axis.title.x = element_text(face="bold",  size=16),
-        axis.text.x  = element_text(size=12)) +
-  ylab("Trend estimate or Mann Kendall tau") +
-  theme(axis.title.y = element_text(face="bold",  size=16),
-        axis.text.y  = element_text(size=12)) +
-  theme(legend.text = element_text(size = 12))+
-  theme(legend.title = element_text(size=16, face="bold")) +
-  theme(strip.text.x = element_text(size=14, face="bold"))
-
-
-tiff("../manuscript/Figure9_ModelResidualTrendPlot.tif",
-  width=16*480,height=12*480,
-     res=600, compression="lzw")
-print(p1)
-dev.off()
-
-```
-
-\newpage
-
 # $\epsilon$ plotting
 
 First read in the data from the previous analyses, and combine to create an overall data frame for plotting.
@@ -378,11 +313,41 @@ p <- p +  xlab("Station") + ylim(-0.5,3) +
   theme(strip.text.x = element_text(size=14, face="bold"))
 p
 
+# Only station rainfall
+OutputChiew2 <- OutputChiew[(OutputChiew$mod == "GR4JGrid" |
+                              OutputChiew$mod == "SimHydGrid"),]
+
+p2 <- ggplot(OutputChiew2, aes(x = station, y = eta_p)) +
+  geom_boxplot(col="gray50", coef=0.5) +  facet_wrap(~ mod, ncol=1) +
+  stat_summary(fun.y=mean, geom="point", shape=16, col="black",lwd=2, size=3)
+
+p2 <- p2 +  geom_point(aes(x=station, y=np_eta_p),
+           shape=17,size=5,colour="gray50", coef=0.5) 
+#+ 
+#        facet_wrap(~ mod,ncol=1)
+p2 <- p2 +  xlab("Station") + ylim(-0.5,3) +
+  theme(axis.title.x = element_text(face="bold",  size=rel(2)),
+        axis.text.x  = element_text(size=rel(1.5))) +
+  ylab("Rainfall Elasticity") +
+  theme(axis.title.y = element_text(face="bold",  size=rel(2)),
+        axis.text.y  = element_text(size=rel(1.5))) +
+  theme(legend.text = element_text( size = rel(1.5)))+
+  theme(legend.title = element_text(size=rel(1.5), face="bold")) +
+  theme(strip.text.x = element_text(size=rel(2), face="bold")) 
+
+
+labels <- c(GR4JGrid = "GR4J Gridded Rainfall Data", SimHydGrid = "SimHyd Gridded Rainfall Data")
+p2 <- p2 + facet_wrap(. ~ mod, labeller=labeller(mod = labels), ncol=1)
+
+
 tiff("../manuscript/Figure3_RainfallElasticityPlot.tif",
   width=16*480,height=12*480,
      res=600, compression="lzw")
-print(p)
+print(p2)
 dev.off()
+
+# Write away the data
+save(OutputChiew2,file="../ProjectData/Figure3Results.Rdata")
 
 ```
 
@@ -390,53 +355,4 @@ dev.off()
 \newpage
 
 
-
-## A plot of the performance of the models
-This is a replotting of what was in part 6 of these documents to create *Figure 4* for the manuscript.
-
-```{r, plotPerformance, fig.width=8, fig.height = 11, fig.cap = "Boxplots and mean values (black dots) for goodness of fit of the GR4J and SimHyd calibrations on the 1970 - 1979 data using gridded and non-gridded data. The goodness of fit is indicated by the Nash Sutcliffe Efficiency, which is equal to 1 for a perfect fit, and 0 for a fit equal to the average streanflow."}
-p <- ggplot(plot.df, aes(x = Station, y = r.squared)) +
-  geom_boxplot(col="grey50", coef=0.75) +  
-  facet_wrap(~ Model,ncol=1, scales="free") +
-  stat_summary(fun.y=mean, geom="point", shape=16,col="black",lwd=2)
-p <- p + ggtitle("Model Calibration NSE") +
-  theme(plot.title = element_text(lineheight=.8, face="bold"))+
-  xlab("Station") +
-  theme(axis.title.x = element_text(face="bold",  size=16),
-        axis.text.x  = element_text(size=12)) +
-  ylab("Nash Sutcliffe Efficiency") +
-  theme(axis.title.y = element_text(face="bold",  size=16),
-        axis.text.y  = element_text(size=12)) +
-  theme(legend.text = element_text( size = 12))+
-  theme(legend.title = element_text(size=14, face="bold")) +
-  theme(strip.text.x = element_text(size=16))
-
-p
-# 
-```
-
-Now replot just for the publication, without the title and only the station data results
-
-```{r figure4pub}
-p <- ggplot(plot.df1, aes(x = Station, y = r.squared)) +
-  geom_boxplot(col="grey50", coef=0.5) +  
-  facet_wrap(~ Model,ncol=1) +
-  stat_summary(fun.y=mean, geom="point", shape=16,col="black",lwd=2)
-p <- p +  xlab("Station") + ylim(0.4,1) +
-  theme(axis.title.x = element_text(face="bold",  size=16),
-        axis.text.x  = element_text(size=12)) +
-  ylab("Nash Sutcliffe Efficiency") +
-  theme(axis.title.y = element_text(face="bold",  size=16),
-        axis.text.y  = element_text(size=12)) +
-  theme(legend.text = element_text( size = 12))+
-  theme(legend.title = element_text(size=14, face="bold")) +
-  theme(strip.text.x = element_text(size=16))
-
- # publication quality
- tiff("../manuscript/Figure4_ModelCalStats.tif",
-      width=16*480,height=12*480,
-      res=600, compression="lzw")
- print(p)
- dev.off()
-```
 

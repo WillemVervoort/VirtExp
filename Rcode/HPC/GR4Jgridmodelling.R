@@ -28,10 +28,10 @@ flow_stns <- data.frame("COTT"="410730", "RUTH"="219001", "CORA"="215004", "ELIZ
 
 # read in the data
 load("Data/ClimCh_project_MD.Rdata")
-load("Data/DailyDataIncludingGridded.Rdata")
-GridRain <- GridRainAllDataout
-rm(flow_rain_maxT_weekly)
-rm(CC)
+#load("Data/DailyDataIncludingGridded.Rdata")
+#GridRain <- GridRainAllDataout
+#rm(flow_rain_maxT_weekly)
+#rm(CC)
 
 nc <- 10 # number of cores
 n <- 10 # number of SCE runs
@@ -80,7 +80,7 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
   # Define the model
   mod.Q <- hydromad(DATA=data.cal,
             sma = "gr4j", routing = "gr4jrouting", 
-            x1 = c(20,4000), x2 = c(-50,30), x3 = c(20,1000), x4 = c(0.5,20), 
+            x1 = c(1,4000), x2 = c(-50,30), x3 = c(1,500), x4 = c(0.5,20), 
             etmult=c(0.01,0.5), return_state=TRUE)
   
   # Change hmadstat("rel.bias")
@@ -128,10 +128,9 @@ for (i in seq_along(flow_stns)) {
   #i <- 1 # testing
   # load(paste(Today,"CalibInputData.Rdata",sep="_"))
   # Create storage frames
-  # Run the calibration												
+  # Run the calibration		
   Output <- Calib.fun(flow = flow_zoo[,i],
-                      Rain = zoo(GridRain[GridRain$Station==Stations[i,1],2],
-                                 order.by=time(rain_zoo)),
+                      Rain = gridRain_zoo[,i],
                       maxT = maxT_zoo[,i], 
                       station = flow_stns[i], nr=n)
   save(Output,

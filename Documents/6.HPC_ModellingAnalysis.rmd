@@ -10,7 +10,8 @@ output:
 ---
 ```{r setup, warning=F, message=F}
 # root dir
-knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir = #"C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+                       "D:/cloudstor/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
@@ -24,15 +25,15 @@ library(hydromad)
 This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository.
 
 # Introduction
-This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology. This is the sixth part of the series that analyses the results from the GR4J and SimHyd model fitting on the High Performance computer Artemis at the University of Sydney. 
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.). This is the sixth part of the series that analyses the results from the GR4J and SimHyd model fitting on the High Performance computer Artemis at the University of Sydney. The scripts related to the high performance computing and the HPC scripts are stored in the Rcode/HPC folder.
 
 In particular, this part extracts the best parameters of the modelling, plots the performance distributions and extracts the residuals to be analysed in a further script using Mann Kendall (this is separated because this takes quite long to run). Finally a comparison between the non-parametric epsilon (sensitivity) and the model based epsilon is plotted for both gridded and non-gridded rainfall. 
 
 This is ultimately related to *Figure 3, Figure 4 and Figure 9* in the manuscript.  *Figure 9* is generated in a different script, as this is the Mann Kendall analysis of the residuals of the models.
 
-To recap, we have 4 different High Performance Computing results for each of the 13 catchments. In each of these the two models (GR4J and SimHyd) were fitted to 10 years of climate data (1970 - 1980). However, there are results for both station rainfall and gridded rainfall to make sure there is no difference between these. As we have seen in the non-parametric epsilon calculation, there is a major difference between the two rainfall data sets, and it is not necessarily clear, which one of these is a better data set.
+To recap, we have 4 different High Performance Computing results for each of the 13 catchments. In each of these the two models (GR4J and SimHyd) were fitted to 40 years of climate data (1970 - 2010). However, there are results for both station rainfall and gridded rainfall to make sure there is no difference between these. As we have seen in the non-parametric epsilon calculation, there is no major difference between the two rainfall data sets, and it is not necessarily clear, which one of these is a better data set.
 
-The model fitting is based on the shuffled complex evolution optimisation in Hydromad as described in more detail in the paper. Essentially the model was fitted 10 times using the `FitBySCE()` function in the [Hydromad](http://hydromad.catchment.org) package. The scripts related to the high performance computing and the HPC scripts are stored in the Rcode/HPC folder.  
+The model fitting is based on the shuffled complex evolution optimisation in Hydromad as described in more detail in the paper. Essentially the model was fitted 10 times using the `FitBySCE()` function in the [Hydromad](http://hydromad.catchment.org) package.   
 
 The HPC results are not stored on Github, as the files are too large, but are stored in the [Cloudstor data directory](https://cloudstor.aarnet.edu.au/plus/index.php/s/68aKtJH6sDwibTC).
 
@@ -54,13 +55,15 @@ GridAlldata_wide <- spread(GridAlldata[,c("Station","gridRain","Date")],
 Gridrain_zoo <- zoo(GridAlldata_wide[,2:14],order.by=time(flow_zoo))
 
 # compile SimHyd
-rcode_dir <- paste(getwd(),"RCode/Simhyd",sep="/")
+root.dir = #"C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp"
+  "D:/cloudstor/Virtual Experiments/VirtExp"
+rcode_dir <- paste(root.dir,"RCode/Simhyd",sep="/")
 source(paste(rcode_dir,"Simhyd.r",sep="/"))
 ```
 
-Define the beginning and end date for the modelling  
+Define the beginning and end date for the modelling. We are now using the whole series for the calibration
 ```{r dates}
-start.date <- as.Date("1981-01-01")
+start.date <- as.Date("1970-01-01")
 end.date <- as.Date("2010-12-31")
 ```
 
@@ -225,7 +228,7 @@ save(OutputMod_GR4J,file="../ProjectData/GR4JHPCModelResults.Rdata")
 
 OutputMod_GR4J <- OutputMod_GR4J[,c(1:4,ncol(OutputMod_GR4J))]
 
-OutputMod_GR4J$model <- "GR4JStationData"
+OutputMod_GR4J$model <- "GR4J Station Rainfall Data"
 
 p <- ggplot(OutputMod_GR4J,aes(station,r.squared)) +  geom_boxplot()
 p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
@@ -355,10 +358,11 @@ pander(aggregate(OutputChiew[,2:5],list(Station=OutputChiew$station),
 save(Residuals,file="../ProjectData/residuals/GR4JGridHPCresiduals.Rdata")
 
 OutputMod_GridGR4J <- do.call(rbind,mod_Res)
+OutputMod_GridGR4J$station <- OutputMod_GR4J$station
 save(OutputMod_GridGR4J,file="../ProjectData/GR4JgridHPCModelResults.Rdata")
 
 OutputMod_GridGR4J <- OutputMod_GridGR4J[,c(1:4,ncol(OutputMod_GridGR4J))]
-OutputMod_GridGR4J$model <- "GR4JGriddedData"
+OutputMod_GridGR4J$model <- "GR4J Gridded Rainfall Data"
 
 p <- ggplot(OutputMod_GridGR4J,aes(station,r.squared)) +  geom_boxplot()
 p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
@@ -373,6 +377,7 @@ Extract the modelling results from the SimHyd model, rerun the model, do the Chi
 ```{r SimHydmodelling}
 # find the list of files with SimHyd results
 filelist <- dir("../Projectdata/HPCResults", pattern = "SimhydCalibOutput")
+filelist <- filelist[-grep("gridSimhydCalibOutput",filelist)]
 
 for (i in seq_along(Stations[,1])) {
   # load the rainfall, ET and flow data
@@ -495,12 +500,14 @@ OutputMod_SimHyd <- do.call(rbind,mod_Res)
 save(OutputMod_SimHyd,file="../ProjectData/SimHydHPCModelResults.Rdata")
 
 OutputMod_SimHyd <- OutputMod_SimHyd[,c(1:4,ncol(OutputMod_SimHyd))]
-OutputMod_SimHyd$model <- "SimHydStationData"
+OutputMod_SimHyd$model <- "SimHyd Station Rainfall Data"
 
 p <- ggplot(OutputMod_SimHyd,aes(station,r.squared)) +  geom_boxplot()
 p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
                       size=5,aes(col=rel.bias))
 print(p)
+
+
 ```
 
 # 5. SimHyd model results with gridded rainfall  
@@ -509,7 +516,8 @@ Extract the modelling results
 
 ```{r SimHydGridmodelling}
 # find the list of files with GridSimHyd results
-filelist <- dir("../Projectdata/HPCResults", pattern = "gridSimhydCalibOutput")
+filelist <- dir("../Projectdata/HPCResults", 
+                pattern = "gridSimhydCalibOutput")
 
 for (i in seq_along(filelist)) {
     # load the rainfall, ET and flow data
@@ -561,7 +569,7 @@ for (i in seq_along(filelist)) {
       temp <- as.data.frame(cbind((1+mu[k,1]/100)*RAIN[,i],
                              (1+mu[k,2]/100)*maxT_zoo[,i]))
       test[[k]] <- do.call(cbind,apply(temp,2,function(x) aggregate(x,
-                        list(year=format(time(flow_zoo),"%Y")),sum,na.rm=T)))
+                      list(year=format(time(flow_zoo),"%Y")),sum,na.rm=T)))
       test[[k]] <- test[[k]][,-3]
     }
     clim_adj <- do.call(rbind,test)
@@ -633,7 +641,7 @@ OutputMod_GridSimHyd <- do.call(rbind,mod_Res)
 saveRDS(OutputMod_GridSimHyd,file="../ProjectData/SimHydHPCModelResults.RDS")
 
 OutputMod_GridSimHyd <- OutputMod_GridSimHyd[,c(1:4,ncol(OutputMod_GridSimHyd))]
-OutputMod_GridSimHyd$model <- "SimHydGridStationData"
+OutputMod_GridSimHyd$model <- "SimHyd Gridded Rainfall Data"
 
 p <- ggplot(OutputMod_GridSimHyd,aes(station,r.squared)) +  geom_boxplot()
 p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
@@ -645,16 +653,37 @@ print(p)
 
 ```{r FinalPerformancePlot, fig.cap="Comparing the performance of different models"}
 
-OutputMod <- rbind(OutputMod_GR4J,OutputMod_GridGR4J, OutputMod_SimHyd,
+OutputMod <- rbind(OutputMod_GridGR4J,
                    OutputMod_GridSimHyd)
 p <- ggplot(OutputMod,aes(station,r.squared)) +  geom_boxplot()
 p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
                       size=5,aes(colour=rel.bias))
-p <- p + facet_wrap(~model)
+p <- p + facet_wrap(~model) +
+  xlab("Station") + ylab("Nash Sutcliffe Efficiency")
+p <- p + theme(axis.text.x = element_text(size = rel(2), angle = 45,
+                                          vjust=0.5),
+               strip.text=element_text(size=rel(2), face = "bold"),
+               axis.text.y = element_text(size = rel(2)),
+               axis.title.x = element_text(size=rel(2), vjust=0),
+               axis.title.y = element_text(size=rel(2), face = "bold.italic"))
+               
 print(p)
+#labels <- c(GR4JGriddedData = "GR4J Gridded Rainfall Data", SimHydGridStationData = "SimHyd Gridded Rainfall Data")
+#p <- p + facet_grid(. ~ model, labeller=labeller(model = labels))
+tiff("../Manuscript/Figure4_ModelCalStats.tif",
+      width=16*480,height=12*480, res=600, compression="lzw")
+print(p)
+dev.off()
 
 # Write away the data
 save(OutputMod,file="../ProjectData/ModelResults.Rdata")
+
+OutputMod2 <- rbind(OutputMod_GridGR4J,
+                   OutputMod_GR4J,
+                   OutputMod_GridSimHyd,
+                    OutputMod_SimHyd)
+save(OutputMod2,file="../ProjectData/ModelResults2.Rdata")
+
 
 ```
 

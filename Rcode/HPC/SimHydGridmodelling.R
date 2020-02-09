@@ -29,9 +29,9 @@ source(paste(rcode_dir,"Simhyd.R",sep="/"))
 #####
 # read in the data
 load("Data/ClimCh_project_MD.Rdata")
-load("Data/DailyDataIncludingGridded.Rdata")
-GridRain <- GridRainAllDataout
-rm(flow_rain_maxT_weekly)
+# load("Data/DailyDataIncludingGridded.Rdata")
+# GridRain <- GridRainAllDataout
+# rm(flow_rain_maxT_weekly)
 
 nc <- 10 # number of cores
 n <- 10 # number of SCE runs
@@ -133,8 +133,7 @@ for (i in 1:2) {
   # Create storage frames
   # Run the calibration												
   Output <- Calib.fun(flow = flow_zoo[,i],
-                      Rain = zoo(GridRain[GridRain$Station==Stations[i,1],2],
-                                 order.by=time(rain_zoo)),
+                      Rain = gridRain_zoo[,i],
                       maxT = maxT_zoo[,i], 
                       station = Stations[i,1], nr=n)
   save(Output,

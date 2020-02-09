@@ -10,17 +10,14 @@ output:
 ---
 ```{r setup, warning=F, message=F}
 # root dir
-knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
-library(tidyr)
+library(tidyverse)
 library(xts)
 library(zoo)
 library(Kendall)
-library(mgcv)
-library(oz)
-library(ggplot2)
 library(deseasonalize)
 
 ```
@@ -90,9 +87,11 @@ for (i in seq_along(Stations[,1])) {
 rain_griddeseas <- rain_zoo
 #
 for (i in seq_along(Stations[,1])) {
-  foo <- GridRainAllDataout[GridRainAllDataout[,"Station"]==Stations[i,1],2]
+  foo <- as_tibble(GridRainAllDataout) %>%
+    dplyr::filter(Station == paste0(Stations[i,1],"RainAC")) %>%
+    dplyr::select(gridRain)
   foo.z <- zoo(foo,  order.by=time(rain_zoo))
-  rain_griddeseas[,i]  <- ds(as.numeric(foo),ic="AIC")$z
+  rain_griddeseas[,i]  <- ds(foo.z,ic="AIC")$z
 }
 ```
 
@@ -335,11 +334,11 @@ hp <- hp + geom_point(data=real_df_f,aes(x=tau, y=0,colour=p_value),
 # show figure
 print(hp)
 # temporary saving for easy plotting later
-save(hp,file="C:/Users/rver4657/ownCloud/Virtual Experiments/Projectdata/MKdeseasonalisedStreamflow.Rdata")
+save(hp,file="../Projectdata/MKdeseasonalisedStreamflow.Rdata")
 #load("20160729_MKdeseasonalisedStreamflow.Rdata")
 
 # publication quality figure for manuscript
-tiff(paste("C:/Users/rver4657/ownCloud/Virtual Experiments/Manuscript",
+tiff(paste("../Manuscript",
            "Figure5_MKdeseasonalisedStreamflow.tif",sep="/"),
      width=12*480,height=10*480,
      compression = "lzw", res=600)
@@ -604,6 +603,9 @@ weeklyTable <- data.frame(Catchment = Stations[,1],
                           "Mean max T p-value" = real_df_maxT$pvalue,
                           "Max max T tau" = real_df_mmaxT$tau,
                           "Max max T p-value" = real_df_mmaxT$pvalue)
+write_csv(weeklyTable,"../ProjectData/MK_WeeklyTable.csv")
+
+
 pander(weeklyTable,
        caption="Mann-Kendall test results on de-seasonalised weekly time series.
        p-values are  considered significant at the 5% level.")
@@ -941,6 +943,10 @@ monthlyTable <- data.frame(Catchment = Stations[,1],
                           "Mean max T p-value" = real_df_maxT_m$pvalue,
                           "Max max T tau" = real_df_mmaxT_m$tau,
                           "Max max T p-value" = real_df_mmaxT_m$pvalue)
+
+write_csv(monthlyTable,"../ProjectData/MK_MonthlyTable.csv")
+
+
 pander(monthlyTable,
        caption="Mann-Kendall test results on de-seasonalised monthly time series.
        p-values are  considered significant at the 5% level.")
@@ -1278,6 +1284,9 @@ annualTable <- data.frame(Catchment = Stations[,1],
                           "Mean max T p-value" = real_df_maxT_y$pvalue,
                           "Max max T tau" = real_df_mmaxT_y$tau,
                           "Max max T p-value" = real_df_mmaxT_y$pvalue)
+write_csv(annualTable,"../ProjectData/MK_AnnualTable.csv")
+
+
 pander(annualTable,
        caption="Mann-Kendall test results on de-seasonalised annual time series.
        p-values are  considered significant at the 5% level.")

@@ -15,6 +15,7 @@
 ##################
 # SET WORKING DIRECTORY # #####
 setwd("/project/RDS-FSC-CCH-RW/MDProjectdata")
+#setwd("E:/Cloudstor/Virtual Experiments/VirtExp")
 Today <- format(Sys.Date(),"%Y%m%d")
 
 #####
@@ -25,6 +26,7 @@ require(Rcpp)
 #####
 
 rcode_dir <-"/project/RDS-FSC-CCH-RW/MDProjectdata/Simhyd" 
+#rcode_dir <- "E:/Cloudstor/Virtual Experiments/VirtExp/Rcode/Simhyd"
 source(paste(rcode_dir,"Simhyd.R",sep="/"))
 
 
@@ -97,10 +99,13 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
   
   # run SCE 10 times
   Store = foreach(j = 1:nr, .combine=rbind) %dopar%
+#  Store <- list()
+#  for (j in 1:10)
   {
     # run each of the SCE calibrations  
     run <- as.numeric(SCEfit(mod.Q))
   }
+#  Store <- do.call(rbind,Store)
   rm(data.cal)
   colnames(Store) <-  c("rel.bias","r.squared","r.sq.sqrt","r.sq.log",
                         "DELAY","X_m","impTh","pFrac","INSC","COEFF",
@@ -123,7 +128,8 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
 
 
 # 3. Now run over the stations
-for (i in 12:13) {
+#for (i in 12:13) {
+i <- 11
   #i <- 8 # testing
   # load(paste(Today,"CalibInputData.Rdata",sep="_"))
   # Create storage frames
@@ -136,7 +142,7 @@ for (i in 12:13) {
        file = paste(Today,paste(Stations[i,1], 
                                 "SimhydCalibOutput.Rdata", sep=""),sep="_"))
   rm(Output)
-}
+#}
 
 
 

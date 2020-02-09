@@ -10,11 +10,12 @@ output:
 ---
 ```{r setup, warning=F, message=F}
 # root dir
-knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+#knitr::opts_knit$set(root.dir = "D:/Cloudstor/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir ="C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
-library(tidyr)
+library(tidyverse)
 library(xts)
 library(zoo)
 library(ggplot2)
@@ -24,16 +25,14 @@ library(reshape2)
 This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository
 
 # Introduction
-This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology. This is the fourth document as part of the response to reviewers of earlier versions of the manuscript outlining in detail the generation of the flow duration curves. This is **Figure 6 and Figure 7** in the manuscript.
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology. This is the fourth document as part of the response to reviewers of earlier versions of the manuscript outlining in detail the generation of the flow duration curves. These figures have now been removed from the manuscript.
+
 The key idea in this analysis is that by comparing the flow duration curves by decade, we might be able to pick up where exactly the rainfall and the flow distribution have changed. An alternative analysis of the rainfall using double mass curves is also presented.
 
 # Load data and find decades
 
 ```{r loaddata}
-load("data/DailyDataIncludingGridded.Rdata")
 load("data/ClimCh_project_MD.Rdata")
-# correct the column name of maxT in GridRainAllDataout
-colnames(GridRainAllDataout)[5] <- "MaxT"
 # define decade start and end
 decade_start <- c(as.Date("1/1/1970", format="%d/%m/%Y"), 
                   as.Date("1/1/1980", format="%d/%m/%Y"), 
@@ -96,7 +95,8 @@ plot.list <- vector("list", length=13)
 temp <- list()
 for (j in 1:length(periods)) {
   for (i in seq_along(Stations[,1])) {
-    temp[[i]] <- (FDCs[[1]][[i]]$flow - FDCs[[j+1]][[i]]$flow)/FDCs[[1]][[i]]$flow
+    temp[[i]] <- (FDCs[[1]][[i]]$flow -
+                        FDCs[[j+1]][[i]]$flow)#/mean(FDCs[[1]][[i]]$flow,na.rm=T)
   }
   fdc <- do.call(cbind,temp)
   colnames(fdc) <- Stations[,1]
@@ -131,12 +131,12 @@ p <- p + ggtitle("Streamflow") +
   theme(strip.text.x = element_text(size=16))
 print(p)
 
-# publication quality
-tiff("../manuscript/Figure6_StreamflowFDCDifference.tif",
-     width=16*480, height=12*480,
-     res=600, compression="lzw")
-print(p)
-dev.off()
+# # publication quality
+# tiff("../manuscript/Figure6_StreamflowFDCDifference.tif",
+#      width=16*480, height=12*480,
+#      res=600, compression="lzw")
+# print(p)
+# dev.off()
 ```
 
 ## daily rainfall data
@@ -160,7 +160,9 @@ plot.list <- vector("list", length=13)
 temp <- list()
 for (j in 1:length(periods)) {
   for (i in seq_along(Stations[,1])) {
-    temp[[i]] <- (FDCs[[1]][[i]]$flow - FDCs[[j+1]][[i]]$flow)/FDCs[[1]][[i]]$flow
+    temp[[i]] <- (FDCs[[1]][[i]]$flow -
+                    FDCs[[j+1]][[i]]$flow)#/mean(FDCs[[1]][[i]]$flow,
+                                               # na.rm=T)
   }
   fdc <- do.call(cbind,temp)
   colnames(fdc) <- Stations[,1]
@@ -195,30 +197,23 @@ p <- p + ggtitle("Rainfall") +
   theme(strip.text.x = element_text(size=16))
 print(p)
 
-#publication quality
-tiff("../manuscript/Figure7_RainfallFDCDifference.tif",
-     width=16*480, height=12*480,
-     res=600, compression="lzw")
-print(p)
-dev.off()
 ```
 
 ## daily gridded rainfall
 ```{r FDC_gridRain, fig.cap="Difference in gridded rainfal duration curves based on daily gridded data split by decade"}
 # gridded rainfall
-grrain_df <- data.frame(decade=rep(flow_decade,13),
-                         as.data.frame(GridRainAllDataout[,1:2]))
+grrain_df <- data.frame(decade=flow_decade,
+                         as.data.frame(gridRain_zoo))
+
 # now calculate the rainfall duration curve for each catchment by decade
 # tapply this across the columns and produce a list
 # do this for each decade
 # an empty list for the decades
 FDCs <- list()
 for (i in 1:4) {
-  temp <- subset(grrain_df,
-                        as.character(grrain_df$decade)==  
-                        as.character(decades[i]))
-  FDCs[[i]] <- tapply(temp[,"gridRain"],
-                      list(Station=temp$Station),FDC_gen)
+  FDCs[[i]] <- apply(subset(grrain_df,
+      as.character(grrain_df$decade)==as.character(decades[i]))[,2:14],
+                      2,FDC_gen)
 }
 
 # plotting
@@ -226,7 +221,9 @@ plot.list <- vector("list", length=13)
 temp <- list()
 for (j in 1:length(periods)) {
   for (i in seq_along(Stations[,1])) {
-    temp[[i]] <- (FDCs[[1]][[i]]$flow - FDCs[[j+1]][[i]]$flow)/FDCs[[1]][[i]]$flow
+    temp[[i]] <- (FDCs[[1]][[i]]$flow -
+                    FDCs[[j+1]][[i]]$flow)#/mean(FDCs[[1]][[i]]$flow, 
+                                                #na.rm=T)
   }
   fdc <- do.call(cbind,temp)
   colnames(fdc) <- Stations[,1]
@@ -260,6 +257,14 @@ p <- p + ggtitle("gridded Rainfall") +
   theme(legend.title = element_text(size=14, face="bold")) +
   theme(strip.text.x = element_text(size=16))
 print(p)
+
+# #publication quality
+# tiff("../manuscript/Figure7_RainfallFDCDifference.tif",
+#      width=16*480, height=12*480,
+#      res=600, compression="lzw")
+# print(p)
+# dev.off()
+
 ```
 
 These results indicate differences between the distributions, but there is no immediate consistent pattern between the different decades or between the flow and the rainfall patterns. So while there could be changes in the distribution of the rainfall over time. There is no direct indication that this has consistently changed the distribution of the flow in time (at least not on the daily time scale).
@@ -295,7 +300,9 @@ plot.list <- vector("list", length=13)
 temp <- list()
 for (j in 1:length(periods)) {
   for (i in seq_along(Stations[,1])) {
-    temp[[i]] <- (FDCs[[1]][[i]]$flow - FDCs[[j+1]][[i]]$flow)/FDCs[[1]][[i]]$flow
+    temp[[i]] <- (FDCs[[1]][[i]]$flow -
+                    FDCs[[j+1]][[i]]$flow)#/mean(FDCs[[1]][[i]]$flow,
+                                              #  na.rm=T)
   }
   fdc <- do.call(cbind,temp)
   colnames(fdc) <- Stations[,1]
@@ -353,7 +360,9 @@ plot.list <- vector("list", length=13)
 temp <- list()
 for (j in 1:length(periods)) {
   for (i in seq_along(Stations[,1])) {
-    temp[[i]] <- (FDCs[[1]][[i]]$flow - FDCs[[j+1]][[i]]$flow)/FDCs[[1]][[i]]$flow
+    temp[[i]] <- (FDCs[[1]][[i]]$flow -
+                    FDCs[[j+1]][[i]]$flow)#/mean(FDCs[[1]][[i]]$flow,
+                                            #    na.rm=T)
   }
   fdc <- do.call(cbind,temp)
   colnames(fdc) <- Stations[,1]
@@ -399,8 +408,8 @@ print(p)
 ```{r weeklyFDC_grrain, fig.cap="Difference in gridded rainfall duration curves based on weekly data split by decade"}
 # Calculate the gridrainfall duration curve for each catchment by decade
 for (i in 1:4) {
-  temp <- subset(weekGridRainAllDataout,
-                        as.character(weekGridRainAllDataout$Decade)==  
+  temp <- subset(flow_rain_maxT_weekly,
+                        as.character(flow_rain_maxT_weekly$Decade)==  
                         as.character(decades[i]))
   FDCs[[i]] <- tapply(temp[,"gridRain"],
                       list(Station=temp$Station),FDC_gen_w)
@@ -411,7 +420,9 @@ plot.list <- vector("list", length=13)
 temp <- list()
 for (j in 1:length(periods)) {
   for (i in seq_along(Stations[,1])) {
-    temp[[i]] <- (FDCs[[1]][[i]]$flow - FDCs[[j+1]][[i]]$flow)/FDCs[[1]][[i]]$flow
+    temp[[i]] <- (FDCs[[1]][[i]]$flow -
+                    FDCs[[j+1]][[i]]$flow)#/mean(FDCs[[1]][[i]]$flow,
+                                           #     na.rm=T)
   }
   fdc <- do.call(cbind,temp)
   colnames(fdc) <- Stations[,1]
@@ -577,5 +588,66 @@ print(p)
 # print(p)
 # dev.off()
 ```
-Again, this indicates variation between the decades, but no consistent trend between the decades or for groups of stations. In general this indicates that thre could be changes in the  distribution of rainfall, but that this change is currently not strong enough to be consistently reflected in changes in the frequency curve or the double mass curve.
+Again, this indicates variation between the decades, but no consistent trend between the decades or for groups of stations. In general this indicates that the could be changes in the  distribution of rainfall, but that this change is currently not strong enough to be consistently reflected in changes in the frequency curve or the double mass curve. There seems to be a change at the end of the decades
+
+## Double mass gridded rainfall
+
+```{r DoubleMass_grrain, fig.cap="Double mass curves based on daily gridded rainfall data split by decade"}
+# Calculate the double mass curve for each catchment by decade
+# apply cumulative sum across the columns and produce a list
+# do this for each decade
+# set all missing values to 0
+grrain_df2 <- grrain_df
+#rain_df2[is.na(rain_df2)==T] <- 0
+# calculate sumulatve sums
+MDCs <- list()
+for (i in 1:4) {
+  MDCs[[i]] <- apply(subset(grrain_df2,
+                as.character(grrain_df2$decade)==
+                  as.character(decades[i]))[,2:14],
+                      2,cumsum)
+}
+
+# plotting
+plot.list <- vector("list", length=3)
+for (j in seq_along(periods)) {
+  mdc = melt(MDCs[[j+1]][1:3652,])[,2:3]  
+  plot.list[[j]] <- cbind(mdc=mdc, period = rep(periods[j],3652*13))
+  colnames(  plot.list[[j]]) <- c("Station", "cumulative_rain","period")
+  levels(  plot.list[[j]]$Station) <- Stations[,1]
+}
+# bring back together to a dataframe
+plot.df <- do.call(rbind,plot.list)
+# add the the first decade as x-axis
+plot.df <- cbind(plot.df,
+                base_decade=rep(melt(MDCs[[1]][1:3652,])[,3],3))
+
+# make a plot
+p <- ggplot(plot.df, aes(x = base_decade, 
+                         y = cumulative_rain)) +
+  geom_line(aes(linetype=period, colour=period),size=1.2) + 
+  facet_wrap(~ Station,ncol=5, scales="free") +
+  theme(legend.position="bottom") +
+  guides(col = guide_legend(nrow = 3))
+p <- p + ggtitle("Gridded rainfall") +
+  theme(plot.title = element_text(lineheight=.8, face="bold")) +
+  xlab("cumulative sum 1970 - 1980") +
+  theme(axis.title.x = element_text(face="bold",  size=14),
+        axis.text.x  = element_text(size=10)) +
+  ylab("Cumulative sum") +
+  theme(axis.title.y = element_text(face="bold",  size=14),
+        axis.text.y  = element_text(size=10)) +
+ scale_colour_manual(values=c("black", "gray33", "gray66")) +
+  theme(legend.text = element_text( size = 10))+
+  theme(legend.title = element_text(size=12, face="bold")) +
+  theme(strip.text.x = element_text(size=12))
+print(p)
+# # publication quality
+# tiff("../manuscript/Figure6_StreamflowFDCDifference.tif",
+#      width=16*480, height=12*480,
+#      res=600, compression="lzw")
+# print(p)
+# dev.off()
+```
+
 The only thing that shows up in most of the southern catchments is a consistenly lower decade between 2000 - 2009, but this is often preceded by a wetter decade between 1990 - 1999, and a drier decade between 1980 - 1989. This suggests a more periodic change rather than a consistent trend.

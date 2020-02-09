@@ -45,7 +45,7 @@ SCEfit <- function(mod) {
   return(c(do.call(rbind,s[7:10])[,1],coef(fit.Q)))
 } 
 
-# fitByOptim function
+# fitByOptim function (not used)
 Ofit <- function(mod,Store) {
   bestFit <- fitByOptim(mod,objective = ~hmadstat("viney")(Q, X),
                         samples = nrow(Store), sampletype = "all.combinations", 
@@ -123,8 +123,8 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
 
 
 # 3. Now run over the stations
-#for (i in 1:length(Stations)) {
-  i <- 3 # testing
+for (i in 1:length(Stations)) {
+  #i <- 2 # testing
   # load(paste(Today,"CalibInputData.Rdata",sep="_"))
   # Create storage frames
   # Run the calibration												
@@ -136,7 +136,7 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
        file = paste(Today,paste(Stations[i,1], 
                                 "SimhydCalibOutput.Rdata", sep=""),sep="_"))
   rm(Output)
-#}
+}
 
 
 

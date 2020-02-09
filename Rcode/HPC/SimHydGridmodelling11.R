@@ -133,8 +133,7 @@ for (i in 11:12) {
   # Create storage frames
   # Run the calibration												
   Output <- Calib.fun(flow = flow_zoo[,i],
-                      Rain = zoo(GridRain[GridRain$Station==Stations[i,1],2],
-                                 order.by=time(rain_zoo)),
+                      Rain = gridRain_zoo[,i],
                       maxT = maxT_zoo[,i], 
                       station = Stations[i,1], nr=n)
   save(Output,

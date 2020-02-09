@@ -10,12 +10,13 @@ output:
 ---
 ```{r setup, warning=F, message=F}
 # root dir
-knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
 library(tidyverse)
-library(xts)
+library(lubridate)
+#library(xts)
 library(zoo)
 library(ggplot2)
 library(reshape2)
@@ -42,17 +43,7 @@ So the aim of this document is to calculate the non-parametric epsilon based on 
 # Loading the data
 
 ```{r loaddata}
-load("data/DailyDataIncludingGridded.Rdata")
 load("data/ClimCh_project_MD.Rdata")
-# correct the column name of maxT in GridRainAllDataout
-colnames(GridRainAllDataout)[5] <- "MaxT"
-# change to tibble
-GridAlldata <- as.tibble(cbind(GridRainAllDataout,
-                               Date=rep(time(flow_zoo),nrow(Stations))))
-# now use spread
-GridAlldata_wide <- spread(GridAlldata[,c("Station","gridRain","Date")],
-                           key=Station, value=gridRain)
-Gridrain_zoo <- zoo(GridAlldata_wide[,2:14],order.by=time(flow_zoo))
 
 ```
 
@@ -62,20 +53,31 @@ First aggregate all the station data, as this includes the flow data. Then aggre
 
 ```{r aggregate}
 # station data for flow
-annualF <- aggregate(flow_zoo,format(time(flow_zoo),"%Y"),sum,na.rm=T)
-mean_annualF <- apply(annualF,2,mean,na.rm=T)
+annualF <- as.tibble(flow_zoo) %>%
+  group_by(year = year(time(flow_zoo))) %>%
+  summarise_all(.funs=sum,na.rm=T)
+mean_annualF <- as.numeric(apply(annualF,2,mean,na.rm=T)[2:14])
+
 # rainfall
-annualR <- aggregate(rain_zoo,format(time(rain_zoo),"%Y"),sum,na.rm=T)
-mean_annualR <- apply(annualR,2,mean,na.rm=T)
+annualR <- as.tibble(rain_zoo) %>%
+  group_by(year = year(time(rain_zoo))) %>%
+  summarise_all(.funs=sum,na.rm=T)
+mean_annualR <- as.numeric(apply(annualR,2,mean,na.rm=T)[2:14])
 
 # Maximum temperature
-annualT <- aggregate(maxT_zoo,format(time(rain_zoo),"%Y"),mean,na.rm=T)
-mean_annualT <- apply(annualT,2,mean,na.rm=T)
+annualT <- as.tibble(maxT_zoo) %>%
+  group_by(year = year(time(maxT_zoo))) %>%
+  summarise_all(.funs=sum,na.rm=T)
+
+mean_annualT <- as.numeric(apply(annualT,2,mean,na.rm=T)[2:14])
 
 # grid rainfall
-annualGridR <- aggregate(Gridrain_zoo,format(time(Gridrain_zoo),"%Y", na.rm=T),
-                         sum)
-mean_annualGridR <- apply(annualGridR,2,mean, na.rm=T)
+annualGridR <- as.tibble(gridRain_zoo) %>%
+  group_by(year = year(time(gridRain_zoo))) %>%
+  summarise_all(.funs=sum,na.rm=T)
+
+mean_annualGridR <- as.numeric(apply(annualGridR,2,mean,
+                                     na.rm=T)[2:14])
 
 ```
 
@@ -86,16 +88,16 @@ We need to check if there is no consistent trend in the rainfall anomalies that 
 ```{r cumulative_Anom}
 # Check cumulative running anomalies to make missing values are not a big thing
 mean_dailyR <- apply(rain_zoo,2,mean,na.rm=T)
-mean_dailyGridR <- apply(Gridrain_zoo,2,mean,na.rm=T)
+mean_dailyGridR <- apply(gridRain_zoo,2,mean,na.rm=T)
 store <- list()
 storeGrid <- list()
 
 # cumulative sums
 for (i in 1:ncol(rain_zoo)) {
    x <- rain_zoo[,i]
-   x1 <- Gridrain_zoo[,i]
+   x1 <- gridRain_zoo[,i]
    miss <- is.na(rain_zoo[,i])
-   miss_g <- is.na(Gridrain_zoo[,i])
+   miss_g <- is.na(gridRain_zoo[,i])
    #x[miss] <- 0
   # Station rainfall
   cs <- cumsum(ifelse(is.na(rain_zoo[,i]-mean_dailyR[i])==T,
@@ -104,10 +106,10 @@ for (i in 1:ncol(rain_zoo)) {
   store[[i]] <- data.frame(Date=time(rain_zoo),data=as.numeric(cs),
                            station=rep(Stations[i,1],length(cs)))
   # Gridded rainfall
-  cs <- cumsum(ifelse(is.na(Gridrain_zoo[,i]-mean_dailyGridR[i])==T,
+  cs <- cumsum(ifelse(is.na(gridRain_zoo[,i]-mean_dailyGridR[i])==T,
                       0, x1 - mean_dailyGridR[i]))
   cs[miss_g] <- NA
-  storeGrid[[i]] <- data.frame(Date=time(Gridrain_zoo),data=as.numeric(cs),
+  storeGrid[[i]] <- data.frame(Date=time(gridRain_zoo),data=as.numeric(cs),
                            station=rep(Stations[i,1],length(cs)))
 }
 
@@ -128,20 +130,24 @@ The anomaly plots, while showing significant variation across the decades (parti
 Non parametric calculation of the elasticity $\epsilon_P$
 
 ```{r calc_e_P}
-eta_p <- function(Q,P,meanQ,meanP) {median((Q-meanQ)/(P-meanP)*meanP/meanQ)}
+eta_p <- function(Q,P,meanQ,meanP) {
+  median((Q-meanQ)/(P-meanP)*meanP/meanQ)}
 
 # station rainfall
 out <- list()
-for (i in 1:ncol(annualF)) {
-  out[[i]] <- eta_p(annualF[,i], annualR[,i],mean_annualF[i],mean_annualR[i])
+for (i in 1:(ncol(annualF)-1)) {
+  out[[i]] <- eta_p(annualF[[i+1]],
+                    annualR[[i+1]],
+                    mean_annualF[i],mean_annualR[i])
 }
 non_par_eta <- data.frame(stn = Stations[,1],eta_p=do.call(c,out))
 
 # gridded rainfall
 out2 <- list()
-for (i in 1:ncol(annualF)) {
-  out2[[i]] <- eta_p(annualF[,i],
-                     annualGridR[,i],mean_annualF[i],mean_annualGridR[i])
+for (i in 1:(ncol(annualF)-1)) {
+  out2[[i]] <- eta_p(annualF[[i+1]],
+                     annualGridR[[i+1]],
+                     mean_annualF[i],mean_annualGridR[i])
 }
 non_par_eta_g <- data.frame(stn = Stations[,1],eta_p=do.call(c,out2))
 ```
@@ -167,18 +173,26 @@ For a sanity check we plot the rainfall against the runoff data to understand th
 
 ```{r RRst, fig.cap="Rainfall runoff relationship for station data"}
 # First rearrange the annual data to a dataframe
-flow_an_stack <- stack(as.data.frame(annualF))
-rain_an_stack <- stack(as.data.frame(annualR))
-maxT_an_stack <- stack(as.data.frame(annualT))
+flow_an_stack <- annualF %>%
+  gather(key="Station", value="flow",
+         COTT_daily_flow:DOMB_daily_flow) %>%
+  mutate(Station = substr(Station,1,4))
+rain_an_stack <- annualR %>%
+    gather(key="Station", value="rain",
+         COTTRain:DOMBRain) %>%
+  mutate(Station = substr(Station,1,4))
+maxT_an_stack <- annualT %>%
+    gather(key="Station", value="maxT",
+         COTTtemp.maxT:DOMBtemp.maxT) %>%
+  mutate(Station = substr(Station,1,4))
 
-RR_df <- data.frame(stn =substr(flow_an_stack$ind,1,4),flow=flow_an_stack$values,
-                        rain=rain_an_stack$values,maxT=maxT_an_stack$values,
-                        trend = rep(1:nrow(annualF),ncol(annualF))) 
+
+RR_df <- left_join(flow_an_stack,rain_an_stack)
 
 p <- ggplot(RR_df, aes(x = rain, y = flow)) +
   geom_point(size=1.5,col="black") + 
   geom_abline(intercept=0, slope=1,col="grey50",lty=2,lwd=1) +
-  facet_wrap(~ stn,ncol=5) +
+  facet_wrap(~ Station,ncol=5) +
   guides(col = guide_legend(nrow = 3))
 p <- p + ggtitle("Rainfall - Runoff") +
   theme(plot.title = element_text(lineheight=.8, face="bold"))+
@@ -204,31 +218,47 @@ dev.off()
 ## Gridded data
 ```{r RRGr, fig.cap="Rainfall runoff relationship for gridded data"}
 # First rearrange the annual data to a dataframe
-flow_an_stack <- stack(as.data.frame(annualF))
-raingr_an_stack <- stack(as.data.frame(annualGridR))
-maxT_an_stack <- stack(as.data.frame(annualT))
+flow_an_stack <- annualF %>%
+  gather(key="Station", value="flow",
+         COTT_daily_flow:DOMB_daily_flow) %>%
+  mutate(Station = substr(Station,1,4))
+raingr_an_stack <- annualGridR %>%
+    gather(key="Station", value="rain",
+         COTTRainAC:DOMBRainAC) %>%
+  mutate(Station = substr(Station,1,4))
+maxT_an_stack <- annualT %>%
+    gather(key="Station", value="maxT",
+         COTTtemp.maxT:DOMBtemp.maxT) %>%
+  mutate(Station = substr(Station,1,4))
 
-RRgr_df <- data.frame(stn =substr(flow_an_stack$ind,1,4),flow=flow_an_stack$values,
-                        rain=raingr_an_stack$values,maxT=maxT_an_stack$values,
-                        trend = rep(1:nrow(annualF),ncol(annualF))) 
 
+RRgr_df <- left_join(flow_an_stack,raingr_an_stack)
+                     
+                     
+                    
 p <- ggplot(RRgr_df, aes(x = rain, y = flow)) +
   geom_point(size=1.5,col="black") + 
   geom_abline(intercept=0, slope=1,col="grey50",lty=2,lwd=1) +
-  facet_wrap(~ stn,ncol=5) +
+  facet_wrap(~ Station,ncol=5) +
   guides(col = guide_legend(nrow = 3))
 p <- p + ggtitle("Rainfall - Runoff (gridded)") +
   theme(plot.title = element_text(lineheight=.8, face="bold"))+
   xlab("Gridded Rainfall") +
-  theme(axis.title.x = element_text(face="bold",  size=12),
-        axis.text.x  = element_text(size=10)) +
+  theme(axis.title.x = element_text(face="bold",  size=rel(2)),
+        axis.text.x  = element_text(size=rel(1.5),
+                                    angle=45, vjust=1)) +
   ylab("Runoff") +
-  theme(axis.title.y = element_text(face="bold",  size=12),
-        axis.text.y  = element_text(size=10)) +
-  theme(legend.text = element_text( size = 10))+
-  theme(legend.title = element_text(size=12, face="bold")) +
-  theme(strip.text.x = element_text(size=12))
+  theme(axis.title.y = element_text(face="bold",size=rel(2)),
+        axis.text.y  = element_text(size=rel(1.5))) +
+  theme(legend.text = element_text( size=rel(1.5)))+
+  theme(legend.title = element_text(size=rel(2), face="bold")) +
+  theme(strip.text.x = element_text(size=rel(2)))
 print(p)
+# publication quality
+tiff("../Manuscript/Figure2_GriddedRainfallRunoffPlot.tif",
+      width=8*480,height=6*480, res=600, compression="lzw")
+print(p)
+dev.off()
 
 ```
 
@@ -241,7 +271,7 @@ write.csv(RR_df,
 
 ## Saving output for later
 
-```{r saving}
+```{r saving2}
 # save output for document 7
 write.csv(plot.df,"Data/non_par_eta.csv", row.names=F)
 ```

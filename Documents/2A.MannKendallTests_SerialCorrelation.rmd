@@ -8,31 +8,34 @@ output:
       fig_height: 6
       fig_caption: true
 ---
-```{r setup, warning=F, message=F}
+```{r setup, echo=F}
 # root dir
-knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages, warning=F, message=F}
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
 library(tidyverse)
 library(xts)
 library(zoo)
-library(modifiedmk)
+library(HKprocess)
 library(mgcv)
 library(oz)
 library(deseasonalize)
-
+require(doParallel)
 ```
 
 This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository.
 
 # Introduction
-This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology. This is the an extenstion on the second document as part of the response to reviewers of earlier versions of the manuscript outlining a mann-kendall statistical test that corrects for the autocorrelation on the streamflow, rainfall and temperature data. This is based on by Hamed [-@Hamed_2008]. THere are two packages in R but using the package [`HKprocess`](https://cran.r-project.org/package=HKprocess) that actually incorporates a modified Mann Kendal test based on Hamed (2008). The results of these tests are incorporated in the submitted manuscript and discussed around **Table 3**.
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), originally submitted to Journal of Hydrology, but since that time modified and rewritten and submitted to a different journal. This is the an extenstion on the [second document](https://github.com/WillemVervoort/VirtExp/blob/master/Documents/2.MannKendallTests.pdf) as part of the response to reviewers of earlier versions of the manuscript outlining a mann-kendall statistical test that corrects for the autocorrelation and long-term persistence in the streamflow, rainfall and temperature data. This is based on the paper by Hamed [-@Hamed_2008]. There are two available packages in R that can perform this analysis but here we are using the package [`HKprocess`](https://cran.r-project.org/package=HKprocess) that actually incorporates a modified Mann Kendal test based on Hamed (2008). The results of these tests are incorporated in the submitted manuscript and discussed around **Table 3**.
 
-Most of this document is exactly the same as the [second document](https://github.com/WillemVervoort/VirtExp/blob/master/Documents/2.MannKendallTests.pdf), except that we are now using the function `MannKendallLTP()` rather than `MannKendall`.
-The problem with the `MannKendallLTP()` function is that the analysis takes very, very long. One analysis on a weekly streamflow series (40 years) takes 18 hours on a single core i7, so we needed to run the weekly and monthly analysis on the HPC on multiple cores. The results are imported back into this document to display the tables.
+Most of this document is exactly the same as the [second document](https://github.com/WillemVervoort/VirtExp/blob/master/Documents/2.MannKendallTests.pdf), except that we are now using the function `MannKendallLTP()` rather than `MannKendall`. The bootstrap analysis is also dropped in this document, as we already analyse this in the [second document](https://github.com/WillemVervoort/VirtExp/blob/master/Documents/2.MannKendallTests.pdf). In addition, using the bootstrap is not really needed if we do the long term persistence analysis. 
+The problem with the `MannKendallLTP()` function is that the analysis takes very, very long. One analysis on a weekly streamflow series (40 years) takes 18 hours on a single core i7, so we needed to run the weekly analysis on the HPC on multiple cores. The results are imported back into this document to display the tables. THe HPC scripts are in Rcode/HPC folder 
 
-The key point of the the analysis on the weekly data is to provide a non-parametric trend test, which can deal with the correlated timeseries stream flow, rainfall and temperature data. To check, whether the weekly summaries bias the analysis, we will also run the Mann Kendall test on the monthly and annual data.
+The key point of the analysis on the weekly data is to provide a non-parametric trend test, which can deal with the correlated timeseries stream flow, rainfall and temperature data. To check, whether the weekly summaries bias the analysis, we will also run the Mann Kendall tests on the monthly and annual data.
 
 # The data  
 Using the datasets that were developed earlier, we can load in the daily data for streamflow, rainfall and temperature. The difference is that the Mann Kendal analysis should concentrate on analysing the anomalies rather than the actual data, and therefore we have to resummarise to weekly data after calculating the anomalies.
@@ -69,7 +72,7 @@ for (i in seq_along(Stations[,1])) {
   # replace NA values with mean flow
   bad <- is.na(foo) 
   foo[bad] <- mean(foo,na.rm=T)
-  rain_deseas[,i]  <- ds(as.numeric(foo),ic="AIC")$z
+  rain_deseas[,i]  <- ds(as.ts(foo),ic="AIC")$z
   # put NA values back
   rain_deseas[bad,i] <- NA
 }
@@ -82,7 +85,7 @@ for (i in seq_along(Stations[,1])) {
   # replace NA values with mean flow
   bad <- is.na(foo) 
   foo[bad] <- mean(foo,na.rm=T)
-  maxT_deseas[,i]  <- ds(as.numeric(foo),ic="AIC")$z
+  maxT_deseas[,i]  <- ds(as.ts(foo),ic="AIC")$z
   # put NA values back
   maxT_deseas[bad,i] <- NA
 }
@@ -91,9 +94,9 @@ for (i in seq_along(Stations[,1])) {
 rain_griddeseas <- rain_zoo
 #
 for (i in seq_along(Stations[,1])) {
-  foo <- GridRainAllDataout[GridRainAllDataout[,"Station"]==Stations[i,1],2]
+  foo <- GridRainAllDataout[substr(GridRainAllDataout$Station,1,4)==Stations[i,1],2]
   foo.z <- zoo(foo,  order.by=time(rain_zoo))
-  rain_griddeseas[,i]  <- ds(as.numeric(foo),ic="AIC")$z
+  rain_griddeseas[,i]  <- ds(as.ts(foo.z),ic="AIC")$z
 }
 ```
 
@@ -260,1034 +263,437 @@ save(flow_monthly, rainfall_monthly, maxT_monthly,rainfall_grdmonthly,
 
 ```
 
-# Bootstrap Mann Kendall analysis using Hamed(2008) 
-The idea here is to follow Westra et al. [-@Westra2012] and calculate the field significance using a bootstrap analysis. This essentially check whether the significance is not due to the random sequence of years, i.e. is not a Type 1 error.
+# Mann Kendall LTP analysis on weekly data using [@Hamed2008]
 
-This starts will setting up the bootstrap for the weekly data for Mann Kendall analysis followed by the monthly analysis. In the bootstrap the sequence of years is randomly shuffled for each bootstrap iteration.  
-First the data set needs to be split in years
+Basically the same analysis is repeated for each of the data sets, similar to part 2 in this series of documents. 
 
-```{r splitDatayear}
-split_flow <- split(flow_weekly_xts,"years")
-split_rain <- split(rainfall_weekly_xts,"years")
-split_grdrain <- split(rainfall_grdweekly_xts,"years")
-split_maxT <- split(maxT_weekly_xts,"years")
-split_mmaxT <- split(m_maxT_weekly_xts,"years") 
-```
+```{r flowMK_LTP}
+# import the analysis of the weekly data from the HPC runs:
+datadir <-
+  "../ProjectData/HPCresults"
 
-To run the bootstrap repeatedly and make sure that the results do not vary slightly every time  the analysis is run, the seed is set.
-```{r setSeed}
-set.seed(10)
-```
+# read in the results from the MannKendallLTP analysis
+# start with flow
+load(paste(datadir,"Store_flow.Rdata",sep="/"))
+MK_standard <- lapply(Store, "[[","Mann_Kendall")
+Hsignif <- lapply(Store, "[[","Significance_of_H")
+MK_LTP <- lapply(Store, "[[","Mann_Kendall_LTP")
 
-The loop is run over all the years (this creates 41 different data sets) and the Mann Kendall test is done on each resonstituted series and the results are saved.
-
-## Streamflow  
-Basically the same analysis is repeated for each of the data sets. Only the flow data is shown in the manuscript this is **Figure 5**.  
-
-```{r flowMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed(2008) on the weekly streamflow data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(flow_weekly_xts),nyears(flow_weekly_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_flow[[series[j]]])
-    } else {
-  # rbind to dataframe
-      new_df <- rbind(new_df,as.data.frame(split_flow[[series[j]]]))
-    }
-  }
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# identify the p-values and the Mann Kendall tau
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-# find only the significant values
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  #i <- 1
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                       tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue < 0.05,]
-}
-
-# prepare a dataframe for plotting
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-
-# do the Mann Kendall on the real data
-real <- do.call(rbind,apply(flow_weekly_xts,2,MannKendall))
-real_df_f <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_f)
-
-# Plot a histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facetted by catchment
-# With panels that have the same scaling, 
-# but different range (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5) + ggtitle("Streamflow")
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_f$pvalue<0.05,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_f,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + scale_colour_grey(start = 0, end = 0.6) +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised Streamflow") #+
-# show figure
-print(hp)
-# temporary saving for easy plotting later
-save(hp,file="C:/Users/rver4657/ownCloud/Virtual Experiments/Manuscript drafts/MKdeseasonalisedStreamflow.Rdata")
-#load("20160729_MKdeseasonalisedStreamflow.Rdata")
-
-# publication quality figure for manuscript
-tiff(paste("C:/Users/rver4657/ownCloud/Virtual Experiments/Manuscript",
-           "Figure5_HamedMKdeseasonalisedStreamflow.tif",sep="/"),
-     width=12*480,height=10*480,
-     compression = "lzw", res=600)
-print(hp)
-dev.off()
+flow_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(flow_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
 # -------- end flow -----------------
+# rainfall
+load(paste(datadir,"Store_rain.Rdata",sep="/"))
+MK_standard <- lapply(Store_rain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_rain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_rain, "[[","Mann_Kendall_LTP")
+
+rain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(rain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end rainfall -----------------
+
+# gridded rainfall
+load(paste(datadir,"Store_gridrain.Rdata",sep="/"))
+MK_standard <- lapply(Store_gridRain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_gridRain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_gridRain, "[[","Mann_Kendall_LTP")
+
+gridrain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(gridrain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end gridded rainfall -----------------
+
+# maxT
+load(paste(datadir,"Store_maxT.Rdata",sep="/"))
+MK_standard <- lapply(Store_maxT, "[[","Mann_Kendall")
+
+Hsignif <- lapply(Store_maxT, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_maxT, "[[","Mann_Kendall_LTP")
+maxT_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(maxT_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end maxT -----------------
+
+
 ```
 
-## rainfall
-
-```{r rainMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008) on the weekly rainfall data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(rainfall_weekly_xts),nyears(rainfall_weekly_xts))
-  for (j in 1:length(series)) {
-    # j <- 1
-    if (j==1) { 
-      new_df <- as.data.frame(split_rain[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_rain[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue< 0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(rainfall_weekly_xts,2,MannKendall))
-real_df_r <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_r)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_r$pvalue<0.05,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_r,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised Rainfall") #+
-print(hp)
-```
-
-## Gridded rainfall
-```{r grdrainMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008)on the weekly gridded rainfall data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(rainfall_grdweekly_xts),nyears(rainfall_grdweekly_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_grdrain[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_grdrain[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue< 0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(rainfall_grdweekly_xts,2,MannKendall))
-real_df_grd_r <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_grd_r)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_grd_r$pvalue<0.05,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_grd_r,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised Gridded Rainfall") #+
-print(hp)
-```
-
-
-##  Mean Maximum temperature
-```{r maxTMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008) on the weekly average maximum temperature data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(maxT_weekly_xts),nyears(maxT_weekly_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_maxT[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_maxT[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue<0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(maxT_weekly_xts,2,MannKendall))
-real_df_maxT <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_maxT)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + 
-  geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_maxT$pvalue<0.1,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_maxT,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised Maximum Temperature") #+
-  #scale_colour_discrete(name="p-value",
-  #                    breaks=c("darkblue","red"),
-  #                    labels=c("<0.1",">=0.1"))
-print(hp)
-```
-
-##  Maximum Maximum temperature
-This is the analysis for the weekly maximum in the maximum temperature as comparison to see if the assumption of the average maximum temperature is not biased.
-
-```{r m_maxTMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008) on the weekly maximum maximum temperature data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(m_maxT_weekly_xts),nyears(m_maxT_weekly_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_mmaxT[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_mmaxT[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue<0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(m_maxT_weekly_xts,2,MannKendall))
-real_df_mmaxT <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_mmaxT)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + 
-  geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_mmaxT$pvalue<0.1,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_mmaxT,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Maximum Maximum Temperature") #+
-print(hp)
-```
 
 ## Summary of weekly analysis in a table  
 This section brings together the data from all the weekly Mann Kendall analyses and puts this into a table. Some of these results are in **Table 3** in the manuscript.
 
-```{r weeklyTable}
+```{r weeklyTables}
 
-weeklyTable <- data.frame(Catchment = Stations[,1], 
-                          "Streamflow tau" = real_df_f$tau,
-                          "Streamflow p-value" = real_df_f$pvalue,
-                          "Rainfall tau" = real_df_r$tau,
-                          "Rainfall p-value" = real_df_r$pvalue,
-                          "Grid Rainfall tau" = real_df_grd_r$tau,
-                          "Grid Rainfall p-value" = real_df_grd_r$pvalue,
-                          "Mean max T tau" = real_df_maxT$tau,
-                          "Mean max T p-value" = real_df_maxT$pvalue,
-                          "Max max T tau" = real_df_mmaxT$tau,
-                          "Max max T p-value" = real_df_mmaxT$pvalue)
-pander(weeklyTable,
+weeklyTable_flow <- data.frame(Catchment = Stations[,1], 
+                  "Streamflow tau MK" = flow_MKLTP[,1],
+                  "Streamflow Sen's slope" = flow_MKLTP[,4],
+                  "Streamflow p-value MK" = flow_MKLTP[,6],
+                  "Streamflow Hurst value" = flow_MKLTP[,7],
+                  "Streamflow Hurst p-value" = flow_MKLTP[,8],
+                  "Streamflow MK LTP p-value" = flow_MKLTP[,10])
+
+weeklyTable_rain <- data.frame(Catchment = Stations[,1], 
+                  "Rainfall tau MK" = rain_MKLTP[,1],
+                  "Rainfall Sen's slope" = rain_MKLTP[,4],
+                  "Rainfall p-value MK" = rain_MKLTP[,6],
+                  "Rainfall Hurst value" = rain_MKLTP[,7],
+                  "Rainfall Hurst p-value" = rain_MKLTP[,8],
+                  "Rainfall MK LTP p-value" = rain_MKLTP[,10])
+
+
+weeklyTable_grid <- data.frame(Catchment = Stations[,1], 
+        "Gridded Rainfall tau MK" = gridrain_MKLTP[,1],
+        "Gridded Rainfall Sen's slope" = gridrain_MKLTP[,4],
+        "Gridded Rainfall p-value MK" = gridrain_MKLTP[,6],
+        "Gridded Rainfall Hurst value" = gridrain_MKLTP[,7],
+        "Gridded Rainfall Hurst p-value" = gridrain_MKLTP[,8],
+        "Gridded Rainfall MK LTP p-value" = gridrain_MKLTP[,10])
+
+weeklyTable_maxT <- data.frame(Catchment = Stations[,1], 
+        "Max Temp tau MK" = maxT_MKLTP[,1],
+        "Max Temp Sen's slope" = maxT_MKLTP[,4],
+        "Max Temp p-value MK" = maxT_MKLTP[,6],
+        "Max Temp Hurst value" = maxT_MKLTP[,7],
+        "Max Temp Hurst p-value" = maxT_MKLTP[,8],
+        "Max Temp MK LTP p-value" = maxT_MKLTP[,10])
+
+pander(weeklyTable_flow,
        caption="Mann-Kendall test (Hamed, 2008)
-      results on de-seasonalised weekly time series.
-       p-values are  considered significant at the 5% level.")
+      results on de-seasonalised weekly flow time series.
+       p-values are considered significant at the 5% level.")
+
+write_csv(weeklyTable_flow,"../ProjectData/MannKendallTest_Flow.csv")
+
+pander(weeklyTable_rain,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised weekly Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+write_csv(weeklyTable_rain,"../ProjectData/MannKendallTest_Rain.csv")
+
+pander(weeklyTable_grid,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised weekly gridded Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+write_csv(weeklyTable_grid,"../ProjectData/MannKendallTest_GriddedRain.csv")
+
+
+pander(weeklyTable_maxT,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised weekly maximum Temperature time series.
+       p-values are considered significant at the 5% level.")
+
+write_csv(weeklyTable_maxT,"../ProjectData/MannKendallTest_maxT.csv")
+
+
 ```
 
-# Monthly Mann Kendall bootstrap analysis  
+# Discussion of the weekly results
+
+Essentially the results show that in all cases the Hurst coefficient is significant and often close to 1. This means the adjusted test should be used and this it the last p-value in the Tables above. Based on this, none of the trends in the streamflow are significant, and only 2 of the gridded rainfall stations (COTT and SOUT) induicate significant trends. The original Mann Kendall analysis showed much more significant trends.
+
+
+
+# Monthly Mann Kendall LTP results
 This is a repeat of the weekly analysis to make sure that there is no major bias in the aggregation.
 
-```{r splitMonthlyDatayear}
-split_flow <- split(flow_monthly_xts,"years")
-split_rain <- split(rainfall_monthly_xts,"years")
-split_grdrain <- split(rainfall_grdmonthly_xts,"years")
-split_maxT <- split(maxT_monthly_xts,"years")
-split_mmaxT <- split(m_maxT_monthly_xts,"years") 
+Basically the same analysis is repeated for each of the data sets. None of this is shown in the manuscript. However, the results are discussed in the section on the Mann Kendall trend analysis results.
+
+```{r MonthlyMK}
+nc <- 6 # number of cores
+registerDoParallel(cores=nc) 
+
+# run in parallel
+Store = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(flow_monthly[,j])
+}
+
+
+# rainfall
+# run in parallel
+Store_rain = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(rainfall_monthly[,j])
+}
+
+# gridded rainfall
+# run in parallel
+Store_gridRain = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(rainfall_grdmonthly[,j])
+}
+
+
+# maxT
+# run in parallel
+Store_maxT = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(maxT_monthly[,j])
+}
+
+#stopCluster(nc)
+
+# results from the MannKendallLTP analysis
+# flow
+MK_standard <- lapply(Store, "[[","Mann_Kendall")
+Hsignif <- lapply(Store, "[[","Significance_of_H")
+MK_LTP <- lapply(Store, "[[","Mann_Kendall_LTP")
+
+flow_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(flow_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end flow -----------------
+# rainfall
+MK_standard <- lapply(Store_rain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_rain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_rain, "[[","Mann_Kendall_LTP")
+
+rain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(rain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end rainfall -----------------
+
+# gridded rainfall
+MK_standard <- lapply(Store_gridRain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_gridRain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_gridRain, "[[","Mann_Kendall_LTP")
+
+gridrain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(gridrain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end gridded rainfall -----------------
+
+# maxT
+MK_standard <- lapply(Store_maxT, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_maxT, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_maxT, "[[","Mann_Kendall_LTP")
+
+maxT_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(maxT_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end maxT -----------------
+
 ```
 
-The loop is again run over all the years (this creates 41 different data sets) and the Mann Kendall test is done on each resonstituted series and the results are saved.
-
-## Monthly Streamflow  
-Basically the same analysis is repeated for each of the data sets. None of this is shown in the manuscript.
-
-```{r MonthlyflowMK, fig.cap="Results of the Bootstrap Mann Kendall using Hamed (2008) analysis on the monthly streamflow data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(flow_monthly_xts),nyears(flow_monthly_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_flow[[series[j]]])
-    } else {
-  # rbind to dataframe
-      new_df <- rbind(new_df,as.data.frame(split_flow[[series[j]]]))
-    }
-  }
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# identify the p-values and the Mann Kendall tau
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-# find only the significant values
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  #i <- 1
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                       tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue < 0.05,]
-}
-
-# prepare a dataframe for plotting
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-
-# do the Mann Kendall on the real data
-real <- do.call(rbind,apply(flow_monthly_xts,2,MannKendall))
-real_df_f_m <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_f_m)
-
-# Plot a histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facetted by catchment
-# With panels that have the same scaling, 
-# but different range (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_f_m$pvalue<0.05,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_f_m,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + scale_colour_grey(start = 0, end = 0.6) +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised Monthly Streamflow") #+
-# show figure
-print(hp)
-```
-
-## rainfall
-
-```{r monthlyrainMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008) on the monthly rainfall data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(rainfall_monthly_xts),nyears(rainfall_monthly_xts))
-  for (j in 1:length(series)) {
-    # j <- 1
-    if (j==1) { 
-      new_df <- as.data.frame(split_rain[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_rain[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue< 0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(rainfall_monthly_xts,2,MannKendall))
-real_df_r_m <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_r_m)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_r_m$pvalue<0.05,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_r_m,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised Monthly Rainfall") #+
-print(hp)
-```
-
-## Gridded rainfall
-```{r monthlygrdrainMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008) on the weekly gridded rainfall data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(rainfall_grdmonthly_xts),nyears(rainfall_grdmonthly_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_grdrain[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_grdrain[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue< 0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(rainfall_grdmonthly_xts,2,MannKendall))
-real_df_grdr_m <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_grdr_m)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_grdr_m$pvalue<0.05,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_grdr_m,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised Gridded Monthly Rainfall") #+
-print(hp)
-```
-
-
-##  Mean Maximum temperature
-```{r monthlymaxTMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008) on the monthly average maximum temperature data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(maxT_monthly_xts),nyears(maxT_monthly_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_maxT[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_maxT[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue<0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(maxT_monthly_xts,2,MannKendall))
-real_df_maxT_m <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_maxT_m)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + 
-  geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_maxT_m$pvalue<0.1,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_maxT_m,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised Monthly Maximum Temperature") #+
-  #scale_colour_discrete(name="p-value",
-  #                    breaks=c("darkblue","red"),
-  #                    labels=c("<0.1",">=0.1"))
-print(hp)
-```
-
-##  Maximum Maximum temperature
-This is the analysis for the monthly maximum in the maximum temperature as comparison to see if the assumption of the average maximum temperature is not biased.
-
-```{r monthlym_maxTMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008) on the weekly maximum maximum temperature data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(m_maxT_monthly_xts),nyears(m_maxT_monthly_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_mmaxT[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_mmaxT[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue<0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(m_maxT_monthly_xts,2,MannKendall))
-real_df_mmaxT_m <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_mmaxT_m)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + 
-  geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_mmaxT_m$pvalue<0.1,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_mmaxT_m,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Monthly Maximum Maximum Temperature") #+
-print(hp)
-```
 
 ## Summary of monthly analysis in a table  
 This section brings together the data from all the monthlyly Mann Kendall analyses and puts this into a table. These results are only for comparison and are not repeated in the manuscript.
 
 ```{r monthlyTable}
 
-monthlyTable <- data.frame(Catchment = Stations[,1], 
-                          "Streamflow tau" = real_df_f_m$tau,
-                          "Streamflow p-value" = real_df_f_m$pvalue,
-                          "Rainfall tau" = real_df_r_m$tau,
-                          "Rainfall p-value" = real_df_r_m$pvalue,
-                          "Grid Rainfall tau" = real_df_grdr_m$tau,
-                          "Grid Rainfall p-value" = real_df_grdr_m$pvalue,
-                          "Mean max T tau" = real_df_maxT_m$tau,
-                          "Mean max T p-value" = real_df_maxT_m$pvalue,
-                          "Max max T tau" = real_df_mmaxT_m$tau,
-                          "Max max T p-value" = real_df_mmaxT_m$pvalue)
-pander(monthlyTable,
-       caption="Mann-Kendall test results using Hamed (2008) on de-seasonalised monthly time series.
-       p-values are  considered significant at the 5% level.")
+monthlyTable_flow <- data.frame(Catchment = Stations[,1], 
+                  "Streamflow tau MK" = flow_MKLTP[,1],
+                  "Streamflow Sen's slope" = flow_MKLTP[,4],
+                  "Streamflow p-value MK" = flow_MKLTP[,6],
+                  "Streamflow Hurst est" = flow_MKLTP[,7],
+                  "Streamflow Hurst p-value" = flow_MKLTP[,8],
+                  "Streamflow MK LTP p-value" = flow_MKLTP[,10])
+
+monthlyTable_rain <- data.frame(Catchment = Stations[,1], 
+                  "Rainfall tau MK" = rain_MKLTP[,1],
+                  "Rainfall Sen's slope" = rain_MKLTP[,4],
+                  "Rainfall p-value MK" = rain_MKLTP[,6],
+                  "Rainfall Hurst est" = rain_MKLTP[,7],
+                  "Rainfall Hurst p-value" = rain_MKLTP[,8],
+                  "Rainfall MK LTP p-value" = rain_MKLTP[,10])
+
+
+monthlyTable_grid <- data.frame(Catchment = Stations[,1], 
+        "Gridded Rainfall tau MK" = gridrain_MKLTP[,1],
+        "Gridded Rainfall Sen's slope" = gridrain_MKLTP[,4],
+        "Gridded Rainfall p-value MK" = gridrain_MKLTP[,6],
+        "Gridded Rainfall Hurst est" = gridrain_MKLTP[,7],
+        "Gridded Rainfall Hurst p-value" = gridrain_MKLTP[,8],
+        "Gridded Rainfall MK LTP p-value" = gridrain_MKLTP[,10])
+
+monthlyTable_maxT <- data.frame(Catchment = Stations[,1], 
+        "Gridded Max Temp tau MK" = maxT_MKLTP[,1],
+        "Gridded Max Temp Sen's slope" = maxT_MKLTP[,4],
+        "Gridded Max Temp p-value MK" = maxT_MKLTP[,6],
+        "Gridded Max Temp Hurst est" = maxT_MKLTP[,7],
+        "Gridded Max Temp Hurst p-value" = maxT_MKLTP[,8],
+        "Gridded Max Temp MK LTP p-value" = maxT_MKLTP[,10])
+
+pander(monthlyTable_flow,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised monthly flow time series.
+       p-values are considered significant at the 5% level.")
+
+pander(monthlyTable_rain,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised monthly Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+pander(monthlyTable_grid,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised monthly gridded Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+pander(monthlyTable_maxT,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised monthly mean Maximum Temperature time series.
+       p-values are considered significant at the 5% level.")
+
 ```
 
-# Monthly Mann Kendall bootstrap analysis  
-This is a repeat of the weekly analysis to make sure that there is no major bias in the aggregation.
+## Annual Mann Kendall LTP analysis    
+Basically the same analysis is repeated for each of the data sets. Some of this is discussed in the manuscript.
 
-```{r splitbyyear}
-split_flow <- split(flow_monthly_xts,"years")
-split_rain <- split(rainfall_monthly_xts,"years")
-split_grdrain <- split(rainfall_grdmonthly_xts,"years")
-split_maxT <- split(maxT_monthly_xts,"years")
-split_mmaxT <- split(m_maxT_monthly_xts,"years") 
+```{r annualMK}
+nc <- 6 # number of cores
+registerDoParallel(cores=nc) 
+
+# run in parallel
+Store = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(flow_annual[,j])
+}
+
+
+# rainfall
+# run in parallel
+Store_rain = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(rainfall_annual[,j])
+}
+
+# gridded rainfall
+# run in parallel
+Store_gridRain = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(rainfall_grdannual[,j])
+}
+
+
+# maxT
+# run in parallel
+Store_maxT = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(maxT_annual[,j])
+}
+
+#stopCluster(nc)
+
+# results from the MannKendallLTP analysis
+# flow
+MK_standard <- lapply(Store, "[[","Mann_Kendall")
+Hsignif <- lapply(Store, "[[","Significance_of_H")
+MK_LTP <- lapply(Store, "[[","Mann_Kendall_LTP")
+
+flow_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(flow_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end flow -----------------
+# rainfall
+MK_standard <- lapply(Store_rain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_rain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_rain, "[[","Mann_Kendall_LTP")
+
+rain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(rain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end rainfall -----------------
+
+# gridded rainfall
+MK_standard <- lapply(Store_gridRain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_gridRain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_gridRain, "[[","Mann_Kendall_LTP")
+
+gridrain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(gridrain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end gridded rainfall -----------------
+
+# maxT
+MK_standard <- lapply(Store_maxT, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_maxT, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_maxT, "[[","Mann_Kendall_LTP")
+
+maxT_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(maxT_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end maxT -----------------
+
 ```
 
-The loop is again run over all the years (this creates 41 different data sets) and the Mann Kendall test is done on each resonstituted series and the results are saved.
-
-## Annual Streamflow  
-Basically the same analysis is repeated for each of the data sets. None of this is shown in the manuscript.
-
-```{r annualflowMK, fig.cap="Results of the Bootstrap Mann Kendall using Hamed (2008) analysis on the annual streamflow data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(flow_annual_xts),nyears(flow_annual_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_flow[[series[j]]])
-    } else {
-  # rbind to dataframe
-      new_df <- rbind(new_df,as.data.frame(split_flow[[series[j]]]))
-    }
-  }
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# identify the p-values and the Mann Kendall tau
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-# find only the significant values
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  #i <- 1
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                       tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue < 0.05,]
-}
-
-# prepare a dataframe for plotting
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-
-# do the Mann Kendall on the real data
-real <- do.call(rbind,apply(flow_annual_xts,2,MannKendall))
-real_df_f_y <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_f_y)
-
-# Plot a histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facetted by catchment
-# With panels that have the same scaling, 
-# but different range (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_f_y$pvalue<0.05,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_f_y,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + scale_colour_grey(start = 0, end = 0.6) +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised annual Streamflow") #+
-# show figure
-print(hp)
-```
-
-## rainfall
-
-```{r annualrainMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008) on the annual rainfall data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(rainfall_annual_xts),nyears(rainfall_annual_xts))
-  for (j in 1:length(series)) {
-    # j <- 1
-    if (j==1) { 
-      new_df <- as.data.frame(split_rain[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_rain[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue< 0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(rainfall_annual_xts,2,MannKendall))
-real_df_r_y <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_r_y)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_r_y$pvalue<0.05,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_r_y,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised annual Rainfall") #+
-print(hp)
-```
-
-## Gridded rainfall
-```{r annualgrdrainMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008) on the weekly gridded rainfall data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(rainfall_grdannual_xts),nyears(rainfall_grdannual_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_grdrain[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_grdrain[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue< 0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(rainfall_grdannual_xts,2,MannKendall))
-real_df_grdr_y <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_grdr_y)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_grdr_y$pvalue<0.05,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_grdr_y,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised Gridded annual Rainfall") #+
-print(hp)
-```
-
-
-##  Mean Maximum temperature
-```{r annualmaxTMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008) on the annual average maximum temperature data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(maxT_annual_xts),nyears(maxT_annual_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_maxT[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_maxT[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue<0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(maxT_annual_xts,2,MannKendall))
-real_df_maxT_y <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_maxT_y)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + 
-  geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_maxT_y$pvalue<0.1,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_maxT_y,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Deseasonalised annual Maximum Temperature") #+
-  #scale_colour_discrete(name="p-value",
-  #                    breaks=c("darkblue","red"),
-  #                    labels=c("<0.1",">=0.1"))
-print(hp)
-```
-
-##  Maximum Maximum temperature
-This is the analysis for the annual maximum in the maximum temperature as comparison to see if the assumption of the average maximum temperature is not biased.
-
-```{r annualm_maxTMK, fig.cap="Results of the Bootstrap Mann Kendall analysis using Hamed (2008) on the weekly maximum maximum temperature data. The dot shows the actual result, while the histogram bars show the results of the bootstrap analysis"}
-
-MK_list <- list()
-for (i in 1:500) {
-  # reorganise the list elements
-  series <- sample(1:nyears(m_maxT_annual_xts),nyears(m_maxT_annual_xts))
-  for (j in 1:length(series)) {
-    if (j==1) { 
-      new_df <- as.data.frame(split_mmaxT[[series[j]]])
-    } else {
-      new_df <- rbind(new_df,as.data.frame(split_mmaxT[[series[j]]]))
-    }
-  }
-  # rbind to dataframe
-  # run mann kendall on the columns and store the results
-  mk_r <- apply(new_df,2,MannKendallLTP)
-  
-  MK_list[[i]] <- do.call(cbind,mk_r)  
-}
-
-MK_df <- do.call(rbind,MK_list)
-
-# prepare a dataframe for plotting
-pvalues <- subset(MK_df, rownames(MK_df)=="sl")
-tau <- subset(MK_df, rownames(MK_df)=="tau")
-
-sig_set <- list()
-
-for (i in 1:ncol(pvalues)) {
-  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
-                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
-  sig_set[[i]] <- set[set$pvalue<0.05,]
-}
-
-sig_set_a <- do.call(rbind,sig_set)
-sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
-real <- do.call(rbind,apply(m_maxT_annual_xts,2,MannKendall))
-real_df_mmaxT_y <- data.frame(pvalue = as.numeric(real[,2]), 
-                      tau = as.numeric(real[,1]),
-                      catch=rownames(real),type=rep("real",nrow(real)))
-sig_set_f <- rbind(sig_set_a,real_df_mmaxT_y)
-# A histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + 
-  geom_histogram(binwidth=0.03,colour="white")
-
-# Histogram of significant tau's, facet wrapped by catchment
-# With panels that have the same scaling, but different range 
-# (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
-# add a red point for the real slope from the data
-p_value <- ifelse(real_df_mmaxT_y$pvalue<0.1,"< 0.05",">= 0.05")
-hp <- hp + geom_point(data=real_df_mmaxT_y,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + 
-  scale_colour_brewer(palette="Set1") +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("annual Maximum Maximum Temperature") #+
-print(hp)
-```
 
 ## Summary of annual analysis in a table  
-This section brings together the data from all the annually Mann Kendall analyses and puts this into a table. These results are only for comparison and are not repeated in the manuscript.
+This section brings together the data from all the annually Mann Kendall analyses and puts this into a table. These results are only for comparison and are not repeated in the manuscript. The are briefly discussed in the manuscript in the section on the Mann Kendall results.
 
 ```{r annualTable}
+annualTable_flow <- data.frame(Catchment = Stations[,1], 
+                  "Streamflow tau MK" = flow_MKLTP[,1],
+                  "Streamflow Sen's slope" = flow_MKLTP[,4],
+                  "Streamflow p-value MK" = flow_MKLTP[,6],
+                  "Streamflow Hurst est" = flow_MKLTP[,7],
+                  "Streamflow Hurst p-value" = flow_MKLTP[,8],
+                  "Streamflow MK LTP p-value" = flow_MKLTP[,10])
 
-annualTable <- data.frame(Catchment = Stations[,1], 
-                          "Streamflow tau" = real_df_f_y$tau,
-                          "Streamflow p-value" = real_df_f_y$pvalue,
-                          "Rainfall tau" = real_df_r_y$tau,
-                          "Rainfall p-value" = real_df_r_y$pvalue,
-                          "Grid Rainfall tau" = real_df_grdr_y$tau,
-                          "Grid Rainfall p-value" = real_df_grdr_y$pvalue,
-                          "Mean max T tau" = real_df_maxT_y$tau,
-                          "Mean max T p-value" = real_df_maxT_y$pvalue,
-                          "Max max T tau" = real_df_mmaxT_y$tau,
-                          "Max max T p-value" = real_df_mmaxT_y$pvalue)
-pander(annualTable,
-       caption="Mann-Kendall test results using Hamed (2008) on de-seasonalised annual time series.
-       p-values are  considered significant at the 5% level.")
+annualTable_rain <- data.frame(Catchment = Stations[,1], 
+                  "Rainfall tau MK" = rain_MKLTP[,1],
+                  "Rainfall Sen's slope" = rain_MKLTP[,4],
+                  "Rainfall p-value MK" = rain_MKLTP[,6],
+                  "Rainfall Hurst est" = rain_MKLTP[,7],
+                  "Rainfall Hurst p-value" = rain_MKLTP[,8],
+                  "Rainfall MK LTP p-value" = rain_MKLTP[,10])
+
+
+annualTable_grid <- data.frame(Catchment = Stations[,1], 
+        "Gridded Rainfall tau MK" = gridrain_MKLTP[,1],
+        "Gridded Rainfall Sen's slope" = gridrain_MKLTP[,4],
+        "Gridded Rainfall p-value MK" = gridrain_MKLTP[,6],
+        "Gridded Rainfall Hurst est" = gridrain_MKLTP[,7],
+        "Gridded Rainfall Hurst p-value" = gridrain_MKLTP[,8],
+        "Gridded Rainfall MK LTP p-value" = gridrain_MKLTP[,10])
+
+annualTable_maxT <- data.frame(Catchment = Stations[,1], 
+        "Max Temp tau MK" = maxT_MKLTP[,1],
+        "Max Temp Sen's slope" = maxT_MKLTP[,4],
+        "Max Temp p-value MK" = maxT_MKLTP[,6],
+        "Max Temp Hurst est" = maxT_MKLTP[,7],
+        "Max Temp Hurst p-value" = maxT_MKLTP[,8],
+        "Max Temp MK LTP p-value" = maxT_MKLTP[,10])
+
+pander(annualTable_flow,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised annual flow time series.
+       p-values are considered significant at the 5% level.")
+
+pander(annualTable_rain,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised annual Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+pander(annualTable_grid,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised annual gridded Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+pander(annualTable_maxT,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised annual mean Maximum Temperature time series.
+       p-values are considered significant at the 5% level.")
 ```

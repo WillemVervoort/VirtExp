@@ -7,8 +7,8 @@
 #PBS -P RDS-FSC-CCH-RW
 #PBS -m ae
 #PBS -M willem.vervoort@sydney.edu.au
-#PBS -q defaultQ
+# #PBS -q defaultQ
 
 module load R/3.4.0
 
-R --vanilla < /project/RDS-FSC-CCH-RW/MD_Projectdata/GR4Jmodelling.R > Shell_output.out
+R --vanilla </project/RDS-FSC-CCH-RW/MDProjectdata/GR4Jmodelling.R> Shell_output.out

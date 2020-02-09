@@ -17,7 +17,7 @@ setwd(rcode_dir)
 #require(Rcpp)
 #sourceCpp("SimhydC2002.cpp") # Chiew et al. 2002
 sourceCpp("SimhydC2009.cpp") # Chiew et al. 2009 and Chiew 2006
-#sourceCpp("Simhyd_eWater.cpp") # eWater and SOURCE version
+sourceCpp("Simhyd_eWater.cpp") # eWater and SOURCE version
 #sourceCpp("SimhydMJEq.cpp") # rewrite of Min Ju Shin's version
 setwd(old_dir)
 
@@ -729,7 +729,7 @@ simhydrouting.sim <- function(U, DELAY=1, X_m=0.2,
   return(X)
 }    
 
-define ranges of parameters
+#define ranges of parameters
 simhyd_C2009.ranges <- simhyd_C2002.ranges  <- function()
   list(INSC = c(0,50),
        COEFF = c(0.0,400),

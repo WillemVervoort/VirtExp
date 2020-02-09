@@ -1,0 +1,112 @@
+---
+title: "Extract Adj r-squared GAMM model 5"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document:
+      fig_width: 7
+      fig_height: 6
+      fig_caption: true
+---
+
+```{r setup, warning=F, message=F}
+# root dir
+knitr::opts_knit$set(root.dir = 
+                       "d:/cloudstor/Virtual Experiments/VirtExp")
+knitr::opts_chunk$set(echo = TRUE)
+# LOAD REQUIRED PACKAGES # #####
+library(pander)
+library(tidyverse)
+library(xts)
+library(zoo)
+library(mgcv)
+library(Kendall)
+library(doParallel)
+library(foreach)
+
+storedir <- "d:/cloudstor/virtual experiments"
+
+```
+
+
+This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository
+
+# Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology.
+This section only extracts the performance results (Ajusted r_squared) from the GAMM results of model 4 and 5 from part 3 of the series, [3.GAMmodelTests.pdf](./3.GAMmodelTests.pdf)
+
+# Read in the results
+
+```{r}
+
+# currently not saved
+# # Station rainfall model 4
+# load(paste(storedir,
+#                 "projectdata/StoreFwRE_TrendAnalysis.RData",
+#                 sep = "/"))
+
+
+#Gridded raifnall model 4
+load(paste(storedir,
+                "projectdata/StoreFwGRE_TrendAnalysis.RData",
+                sep="/"))
+
+# Station rainfall model 5
+load(paste(storedir,
+                "projectdata/StoreFwRE_Analysis.RData",
+                sep="/"))
+
+# Gridded Rainfall Model 5
+load(paste(storedir,
+                "projectdata/StoreFwGRE2_TrendAnalysis.RData",
+                sep="/"))
+
+```
+
+
+# extract the adjusted r-squared
+
+```{r}
+
+# Gridded rainfall model 4
+Model4Grid_AdjR2 <- list()
+
+for (i in 1:13) {
+  Model4Grid_AdjR2[[i]] <- summary(Store_FwGRE[[i]]$model$gam)$r.sq
+  
+}
+
+Model4Grid_AdjR2 <- do.call(rbind,Model4Grid_AdjR2)
+
+# Station rainfall model 5
+Model5Station_AdjR2 <- list()
+
+for (i in 1:13) {
+  Model5Station_AdjR2[[i]] <- summary(Store_FwRE2[[i]]$model$gam)$r.sq
+  
+}
+
+Model5Station_AdjR2 <- do.call(rbind,Model5Station_AdjR2)
+
+
+
+# Gridded rainfall model 5
+Model5Grid_AdjR2 <- list()
+
+for (i in 1:13) {
+  Model5Grid_AdjR2[[i]] <- summary(Store_FwGRE2[[i]]$model$gam)$r.sq
+  
+}
+
+Model5Grid_AdjR2 <- do.call(rbind,Model5Grid_AdjR2)
+
+Results <- tibble(Station= do.call(rbind, lapply(1:length(Store_FwGRE), 
+                          function(i) rbind(Store_FwGRE[[i]][[2]][[1]])))$Station,
+                  Model4_Grid = Model4Grid_AdjR2, Model5_Station = Model5Station_AdjR2,
+                  Model5_Grid = Model5Grid_AdjR2)
+pander(Results, caption="Adjusted r-squared for models 4 and 5 from the GAMM analysis")
+
+```
+
+
+
