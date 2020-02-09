@@ -1,0 +1,699 @@
+---
+title: "Mann Kendall tests correcting for serial correlation"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document:
+      fig_width: 7
+      fig_height: 6
+      fig_caption: true
+---
+```{r setup, echo=F}
+# root dir
+knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages, warning=F, message=F}
+# LOAD REQUIRED PACKAGES # #####
+library(pander)
+library(tidyverse)
+library(xts)
+library(zoo)
+library(HKprocess)
+library(mgcv)
+library(oz)
+library(deseasonalize)
+require(doParallel)
+```
+
+This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository.
+
+# Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), originally submitted to Journal of Hydrology, but since that time modified and rewritten and submitted to a different journal. This is the an extenstion on the [second document](https://github.com/WillemVervoort/VirtExp/blob/master/Documents/2.MannKendallTests.pdf) as part of the response to reviewers of earlier versions of the manuscript outlining a mann-kendall statistical test that corrects for the autocorrelation and long-term persistence in the streamflow, rainfall and temperature data. This is based on the paper by Hamed [-@Hamed_2008]. There are two available packages in R that can perform this analysis but here we are using the package [`HKprocess`](https://cran.r-project.org/package=HKprocess) that actually incorporates a modified Mann Kendal test based on Hamed (2008). The results of these tests are incorporated in the submitted manuscript and discussed around **Table 3**.
+
+Most of this document is exactly the same as the [second document](https://github.com/WillemVervoort/VirtExp/blob/master/Documents/2.MannKendallTests.pdf), except that we are now using the function `MannKendallLTP()` rather than `MannKendall`. The bootstrap analysis is also dropped in this document, as we already analyse this in the [second document](https://github.com/WillemVervoort/VirtExp/blob/master/Documents/2.MannKendallTests.pdf). In addition, using the bootstrap is not really needed if we do the long term persistence analysis. 
+The problem with the `MannKendallLTP()` function is that the analysis takes very, very long. One analysis on a weekly streamflow series (40 years) takes 18 hours on a single core i7, so we needed to run the weekly analysis on the HPC on multiple cores. The results are imported back into this document to display the tables. THe HPC scripts are in Rcode/HPC folder 
+
+The key point of the analysis on the weekly data is to provide a non-parametric trend test, which can deal with the correlated timeseries stream flow, rainfall and temperature data. To check, whether the weekly summaries bias the analysis, we will also run the Mann Kendall tests on the monthly and annual data.
+
+# The data  
+Using the datasets that were developed earlier, we can load in the daily data for streamflow, rainfall and temperature. The difference is that the Mann Kendal analysis should concentrate on analysing the anomalies rather than the actual data, and therefore we have to resummarise to weekly data after calculating the anomalies.
+
+The other thing that is missing is a dataset for the anomalies in weekly "maximum maximum temperature", rather than the weekly average maximum temperature.
+
+A further point to note is that the observed data contain missing values, which remain in the analysis. The gridded data does not contain missing data as this is interpolated predicted data.
+
+## Deseasonalise the data  
+The first step is to calculate the anomalies by deseasonalising the data using the package `deseasonalize` in R: [deseasonalize](https://cran.r-project.org/web/packages/deseasonalize/index.html).  
+
+```{r Data_and_deseasonalise}
+load("data/DailyDataIncludingGridded.Rdata")
+load("data/ClimCh_project_MD.Rdata")
+
+
+# daily observed flow
+flow_deseas <- flow_zoo
+# now assign to a new dataframe
+for (i in (seq_along(Stations[,1]))) {
+  foo <- flow_zoo[,i]
+# replace missing values with mean flow
+  bad <- is.na(foo) 
+  foo[bad] <- mean(foo,na.rm=T)
+  flow_deseas[,i]    <- ds(as.ts(foo),ic="AIC")$z
+# put NA values back
+  flow_deseas[bad,i] <- NA
+}
+# daily obseverved rainfall
+rain_deseas <- rain_zoo
+# now assign to a new dataframe
+for (i in seq_along(Stations[,1])) {
+  foo <- rain_zoo[,i]
+  # replace NA values with mean flow
+  bad <- is.na(foo) 
+  foo[bad] <- mean(foo,na.rm=T)
+  rain_deseas[,i]  <- ds(as.ts(foo),ic="AIC")$z
+  # put NA values back
+  rain_deseas[bad,i] <- NA
+}
+
+# daily observed maximum temperature
+maxT_deseas <- maxT_zoo
+# now assign to a new dataframe
+for (i in seq_along(Stations[,1])) {
+  foo <- maxT_zoo[,i]
+  # replace NA values with mean flow
+  bad <- is.na(foo) 
+  foo[bad] <- mean(foo,na.rm=T)
+  maxT_deseas[,i]  <- ds(as.ts(foo),ic="AIC")$z
+  # put NA values back
+  maxT_deseas[bad,i] <- NA
+}
+
+# do the same for the gridded rainfall data
+rain_griddeseas <- rain_zoo
+#
+for (i in seq_along(Stations[,1])) {
+  foo <- GridRainAllDataout[substr(GridRainAllDataout$Station,1,4)==Stations[i,1],2]
+  foo.z <- zoo(foo,  order.by=time(rain_zoo))
+  rain_griddeseas[,i]  <- ds(as.ts(foo.z),ic="AIC")$z
+}
+```
+
+## Summarise to weekly, monthly and annual data  
+Similar to the original data the package [`xts`](https://cran.r-project.org/package=xts) can be used to summarise the data to weekly mean values. For the flow and rainfall data, we calculate the sum by week, month and year, while for the temperature we calculate the mean. As indicated, for the maximum temperature, we also calculate the "maximum" weekly maximum temperature, as this might be more meaningful than just the mean value.  
+In addition, the monthly  and annual anomalies are also generated so the difference between the trend analysis on a weekly, monthly and annual scale can be checked.
+
+```{r summariseWeekly,warning=F,message=F}
+# flow (sum flow)
+flow_xts <- xts(flow_deseas, 
+                order.by=time(flow_deseas), 
+                frequency=1)
+
+# weekly data summarising (destroys xts object)
+flow_weekly <- apply(flow_xts,2,
+                             function(x) apply.weekly(x,
+                                                      sum,na.rm=T))
+# define weekly dates
+Dates <- time(apply.weekly(flow_xts[,1],sum))
+# restore the xts object
+flow_weekly_xts <- as.xts(flow_weekly,
+                              order.by=Dates)
+# monthly data summarising (destroys xts object)
+flow_monthly <- apply(flow_xts,2,
+                             function(x) apply.monthly(x,
+                                                      sum,na.rm=T))
+# define monthly dates
+Dates <- time(apply.monthly(flow_xts[,1],sum))
+# restore the xts object
+flow_monthly_xts <- as.xts(flow_monthly,
+                              order.by=Dates)
+# annual data (destroys xts object)
+flow_annual <- apply(flow_xts,2,
+                             function(x) apply.yearly(x,
+                                                      sum,na.rm=T))
+# define annual dates
+Dates <- time(apply.yearly(flow_xts[,1],sum))
+# restore the xts object
+flow_annual_xts <- as.xts(flow_annual,
+                              order.by=Dates)
+
+
+# rainfall (sum rainfall)
+rainfall_xts <- xts(rain_deseas, 
+                    order.by=time(rain_deseas), 
+                    frequency=1)
+# weekly data summarising (destroys xts object)
+rainfall_weekly <- apply(rainfall_xts,2,
+                             function(x) apply.weekly(x,
+                                                      sum,na.rm=T))
+# define weekly dates
+Dates <- time(apply.weekly(rainfall_xts[,1],sum))
+# restore the xts object
+rainfall_weekly_xts <- as.xts(rainfall_weekly,
+                              order.by=Dates)
+# monthly data summarising (destroys xts object)
+rainfall_monthly <- apply(rainfall_xts,2,
+                             function(x) apply.monthly(x,
+                                                      sum,na.rm=T))
+# define monthly dates
+Dates <- time(apply.monthly(rainfall_xts[,1],sum))
+# restore the xts object
+rainfall_monthly_xts <- as.xts(rainfall_monthly,
+                              order.by=Dates)
+# annual data (destroys xts object)
+rainfall_annual <- apply(rainfall_xts,2,
+                             function(x) apply.yearly(x,
+                                                      sum,na.rm=T))
+# define annual dates
+Dates <- time(apply.yearly(rainfall_xts[,1],sum))
+# restore xts object
+rainfall_annual_xts <- as.xts(rainfall_annual,
+                              order.by=Dates)
+
+# gridded rainfall (sum rainfall)
+rainfall_grdxts <- xts(rain_griddeseas, 
+                    order.by=time(rain_griddeseas), 
+                    frequency=1)
+# weekly data summarising (destroys xts object)
+rainfall_grdweekly <- apply(rainfall_grdxts,2,
+                             function(x) apply.weekly(x,
+                                                      sum,na.rm=T))
+# define weekly dates
+Dates <- time(apply.weekly(rainfall_grdxts[,1],sum))
+# restore the xts object
+rainfall_grdweekly_xts <- as.xts(rainfall_grdweekly,
+                              order.by=Dates)
+# monthly data summarising (destroys xts object)
+rainfall_grdmonthly <- apply(rainfall_grdxts,2,
+                             function(x) apply.monthly(x,
+                                                      sum,na.rm=T))
+# define monthly dates
+Dates <- time(apply.monthly(rainfall_grdxts[,1],sum))
+# restore the xts object
+rainfall_grdmonthly_xts <- as.xts(rainfall_grdmonthly,
+                              order.by=Dates)
+# annual data (destroys xts object)
+rainfall_grdannual <- apply(rainfall_grdxts,2,
+                             function(x) apply.yearly(x,
+                                                      sum,na.rm=T))
+# define annual dates
+Dates <- time(apply.yearly(rainfall_grdxts[,1],sum))
+# restore the xts object
+rainfall_grdannual_xts <- as.xts(rainfall_grdannual,
+                              order.by=Dates)
+
+
+# maxT
+maxT_xts <- xts(maxT_deseas, 
+                order.by=time(maxT_deseas), 
+                frequency=1)
+# weekly data summarising (destroys xts object)
+maxT_weekly <- apply(maxT_xts,2,
+                             function(x) apply.weekly(x,
+                                                      sum,na.rm=T))
+# define weekly dates
+Dates <- time(apply.weekly(maxT_xts[,1],sum))
+# restore the xts object
+maxT_weekly_xts <- as.xts(maxT_weekly,
+                              order.by=Dates)
+# monthly data summarising (destroys xts object)
+maxT_monthly <- apply(maxT_xts,2,
+                             function(x) apply.monthly(x,
+                                                      sum,na.rm=T))
+# define monthly dates
+Dates <- time(apply.monthly(maxT_xts[,1],sum))
+# restore the xts object
+maxT_monthly_xts <- as.xts(maxT_monthly,
+                              order.by=Dates)
+# annual data (destroys xts object)
+maxT_annual <- apply(maxT_xts,2,
+                             function(x) apply.yearly(x,
+                                                      sum,na.rm=T))
+# define annual dates
+Dates <- time(apply.yearly(maxT_xts[,1],sum))
+# restore the xts object
+maxT_annual_xts <- as.xts(maxT_annual,
+                              order.by=Dates)
+
+# Also calculate the "max" maximum temperature
+# first substitute a large value into all NA values
+maxT_xts2 <- maxT_xts
+maxT_xts2 <- apply(maxT_xts2,2,function(x) ifelse(is.na(x)==T,99999,x))
+
+# calculate the maximum by week and month
+m_maxT_weekly_xts <- apply.weekly(maxT_xts2,function(x) apply(x,2,max,na.rm=T))
+m_maxT_monthly_xts <- apply.monthly(maxT_xts2,function(x) apply(x,2,max,na.rm=T))
+# annual
+m_maxT_annual_xts <- apply.yearly(maxT_xts2,function(x) apply(x,2,max,na.rm=T))
+
+# now relace the 99999 values with NA again
+m_maxT_weekly_xts <- as.xts(apply(m_maxT_weekly_xts,2,
+                                  function(x) ifelse(x==99999,NA,x)))
+m_maxT_monthly_xts <- as.xts(apply(m_maxT_monthly_xts,2,
+                                   function(x) ifelse(x==99999,NA,x)))
+m_maxT_annual_xts <- as.xts(apply(m_maxT_annual_xts,2,
+                                   function(x) ifelse(x==99999,NA,x)))
+
+# need to save this environment
+save(flow_weekly, rainfall_weekly, maxT_weekly, rainfall_grdweekly,
+     file="Data/weeklyMKdata.Rdata")
+save(flow_monthly, rainfall_monthly, maxT_monthly,rainfall_grdmonthly,
+     file="Data/monthlyMKdata.Rdata")
+
+```
+
+# Mann Kendall LTP analysis on weekly data using [@Hamed2008]
+
+Basically the same analysis is repeated for each of the data sets, similar to part 2 in this series of documents. 
+
+```{r flowMK_LTP}
+# import the analysis of the weekly data from the HPC runs:
+datadir <-
+  "../ProjectData/HPCresults"
+
+# read in the results from the MannKendallLTP analysis
+# start with flow
+load(paste(datadir,"Store_flow.Rdata",sep="/"))
+MK_standard <- lapply(Store, "[[","Mann_Kendall")
+Hsignif <- lapply(Store, "[[","Significance_of_H")
+MK_LTP <- lapply(Store, "[[","Mann_Kendall_LTP")
+
+flow_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(flow_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end flow -----------------
+# rainfall
+load(paste(datadir,"Store_rain.Rdata",sep="/"))
+MK_standard <- lapply(Store_rain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_rain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_rain, "[[","Mann_Kendall_LTP")
+
+rain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(rain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end rainfall -----------------
+
+# gridded rainfall
+load(paste(datadir,"Store_gridrain.Rdata",sep="/"))
+MK_standard <- lapply(Store_gridRain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_gridRain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_gridRain, "[[","Mann_Kendall_LTP")
+
+gridrain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(gridrain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end gridded rainfall -----------------
+
+# maxT
+load(paste(datadir,"Store_maxT.Rdata",sep="/"))
+MK_standard <- lapply(Store_maxT, "[[","Mann_Kendall")
+
+Hsignif <- lapply(Store_maxT, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_maxT, "[[","Mann_Kendall_LTP")
+maxT_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(maxT_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end maxT -----------------
+
+
+```
+
+
+## Summary of weekly analysis in a table  
+This section brings together the data from all the weekly Mann Kendall analyses and puts this into a table. Some of these results are in **Table 3** in the manuscript.
+
+```{r weeklyTables}
+
+weeklyTable_flow <- data.frame(Catchment = Stations[,1], 
+                  "Streamflow tau MK" = flow_MKLTP[,1],
+                  "Streamflow Sen's slope" = flow_MKLTP[,4],
+                  "Streamflow p-value MK" = flow_MKLTP[,6],
+                  "Streamflow Hurst value" = flow_MKLTP[,7],
+                  "Streamflow Hurst p-value" = flow_MKLTP[,8],
+                  "Streamflow MK LTP p-value" = flow_MKLTP[,10])
+
+weeklyTable_rain <- data.frame(Catchment = Stations[,1], 
+                  "Rainfall tau MK" = rain_MKLTP[,1],
+                  "Rainfall Sen's slope" = rain_MKLTP[,4],
+                  "Rainfall p-value MK" = rain_MKLTP[,6],
+                  "Rainfall Hurst value" = rain_MKLTP[,7],
+                  "Rainfall Hurst p-value" = rain_MKLTP[,8],
+                  "Rainfall MK LTP p-value" = rain_MKLTP[,10])
+
+
+weeklyTable_grid <- data.frame(Catchment = Stations[,1], 
+        "Gridded Rainfall tau MK" = gridrain_MKLTP[,1],
+        "Gridded Rainfall Sen's slope" = gridrain_MKLTP[,4],
+        "Gridded Rainfall p-value MK" = gridrain_MKLTP[,6],
+        "Gridded Rainfall Hurst value" = gridrain_MKLTP[,7],
+        "Gridded Rainfall Hurst p-value" = gridrain_MKLTP[,8],
+        "Gridded Rainfall MK LTP p-value" = gridrain_MKLTP[,10])
+
+weeklyTable_maxT <- data.frame(Catchment = Stations[,1], 
+        "Max Temp tau MK" = maxT_MKLTP[,1],
+        "Max Temp Sen's slope" = maxT_MKLTP[,4],
+        "Max Temp p-value MK" = maxT_MKLTP[,6],
+        "Max Temp Hurst value" = maxT_MKLTP[,7],
+        "Max Temp Hurst p-value" = maxT_MKLTP[,8],
+        "Max Temp MK LTP p-value" = maxT_MKLTP[,10])
+
+pander(weeklyTable_flow,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised weekly flow time series.
+       p-values are considered significant at the 5% level.")
+
+write_csv(weeklyTable_flow,"../ProjectData/MannKendallTest_Flow.csv")
+
+pander(weeklyTable_rain,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised weekly Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+write_csv(weeklyTable_rain,"../ProjectData/MannKendallTest_Rain.csv")
+
+pander(weeklyTable_grid,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised weekly gridded Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+write_csv(weeklyTable_grid,"../ProjectData/MannKendallTest_GriddedRain.csv")
+
+
+pander(weeklyTable_maxT,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised weekly maximum Temperature time series.
+       p-values are considered significant at the 5% level.")
+
+write_csv(weeklyTable_maxT,"../ProjectData/MannKendallTest_maxT.csv")
+
+
+```
+
+# Discussion of the weekly results
+
+Essentially the results show that in all cases the Hurst coefficient is significant and often close to 1. This means the adjusted test should be used and this it the last p-value in the Tables above. Based on this, none of the trends in the streamflow are significant, and only 2 of the gridded rainfall stations (COTT and SOUT) induicate significant trends. The original Mann Kendall analysis showed much more significant trends.
+
+
+
+# Monthly Mann Kendall LTP results
+This is a repeat of the weekly analysis to make sure that there is no major bias in the aggregation.
+
+Basically the same analysis is repeated for each of the data sets. None of this is shown in the manuscript. However, the results are discussed in the section on the Mann Kendall trend analysis results.
+
+```{r MonthlyMK}
+nc <- 6 # number of cores
+registerDoParallel(cores=nc) 
+
+# run in parallel
+Store = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(flow_monthly[,j])
+}
+
+
+# rainfall
+# run in parallel
+Store_rain = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(rainfall_monthly[,j])
+}
+
+# gridded rainfall
+# run in parallel
+Store_gridRain = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(rainfall_grdmonthly[,j])
+}
+
+
+# maxT
+# run in parallel
+Store_maxT = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(maxT_monthly[,j])
+}
+
+#stopCluster(nc)
+
+# results from the MannKendallLTP analysis
+# flow
+MK_standard <- lapply(Store, "[[","Mann_Kendall")
+Hsignif <- lapply(Store, "[[","Significance_of_H")
+MK_LTP <- lapply(Store, "[[","Mann_Kendall_LTP")
+
+flow_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(flow_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end flow -----------------
+# rainfall
+MK_standard <- lapply(Store_rain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_rain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_rain, "[[","Mann_Kendall_LTP")
+
+rain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(rain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end rainfall -----------------
+
+# gridded rainfall
+MK_standard <- lapply(Store_gridRain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_gridRain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_gridRain, "[[","Mann_Kendall_LTP")
+
+gridrain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(gridrain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end gridded rainfall -----------------
+
+# maxT
+MK_standard <- lapply(Store_maxT, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_maxT, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_maxT, "[[","Mann_Kendall_LTP")
+
+maxT_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(maxT_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end maxT -----------------
+
+```
+
+
+## Summary of monthly analysis in a table  
+This section brings together the data from all the monthlyly Mann Kendall analyses and puts this into a table. These results are only for comparison and are not repeated in the manuscript.
+
+```{r monthlyTable}
+
+monthlyTable_flow <- data.frame(Catchment = Stations[,1], 
+                  "Streamflow tau MK" = flow_MKLTP[,1],
+                  "Streamflow Sen's slope" = flow_MKLTP[,4],
+                  "Streamflow p-value MK" = flow_MKLTP[,6],
+                  "Streamflow Hurst est" = flow_MKLTP[,7],
+                  "Streamflow Hurst p-value" = flow_MKLTP[,8],
+                  "Streamflow MK LTP p-value" = flow_MKLTP[,10])
+
+monthlyTable_rain <- data.frame(Catchment = Stations[,1], 
+                  "Rainfall tau MK" = rain_MKLTP[,1],
+                  "Rainfall Sen's slope" = rain_MKLTP[,4],
+                  "Rainfall p-value MK" = rain_MKLTP[,6],
+                  "Rainfall Hurst est" = rain_MKLTP[,7],
+                  "Rainfall Hurst p-value" = rain_MKLTP[,8],
+                  "Rainfall MK LTP p-value" = rain_MKLTP[,10])
+
+
+monthlyTable_grid <- data.frame(Catchment = Stations[,1], 
+        "Gridded Rainfall tau MK" = gridrain_MKLTP[,1],
+        "Gridded Rainfall Sen's slope" = gridrain_MKLTP[,4],
+        "Gridded Rainfall p-value MK" = gridrain_MKLTP[,6],
+        "Gridded Rainfall Hurst est" = gridrain_MKLTP[,7],
+        "Gridded Rainfall Hurst p-value" = gridrain_MKLTP[,8],
+        "Gridded Rainfall MK LTP p-value" = gridrain_MKLTP[,10])
+
+monthlyTable_maxT <- data.frame(Catchment = Stations[,1], 
+        "Gridded Max Temp tau MK" = maxT_MKLTP[,1],
+        "Gridded Max Temp Sen's slope" = maxT_MKLTP[,4],
+        "Gridded Max Temp p-value MK" = maxT_MKLTP[,6],
+        "Gridded Max Temp Hurst est" = maxT_MKLTP[,7],
+        "Gridded Max Temp Hurst p-value" = maxT_MKLTP[,8],
+        "Gridded Max Temp MK LTP p-value" = maxT_MKLTP[,10])
+
+pander(monthlyTable_flow,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised monthly flow time series.
+       p-values are considered significant at the 5% level.")
+
+pander(monthlyTable_rain,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised monthly Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+pander(monthlyTable_grid,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised monthly gridded Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+pander(monthlyTable_maxT,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised monthly mean Maximum Temperature time series.
+       p-values are considered significant at the 5% level.")
+
+```
+
+## Annual Mann Kendall LTP analysis    
+Basically the same analysis is repeated for each of the data sets. Some of this is discussed in the manuscript.
+
+```{r annualMK}
+nc <- 6 # number of cores
+registerDoParallel(cores=nc) 
+
+# run in parallel
+Store = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(flow_annual[,j])
+}
+
+
+# rainfall
+# run in parallel
+Store_rain = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(rainfall_annual[,j])
+}
+
+# gridded rainfall
+# run in parallel
+Store_gridRain = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(rainfall_grdannual[,j])
+}
+
+
+# maxT
+# run in parallel
+Store_maxT = foreach(j = 1:length(Stations[,1]),
+                .packages=c("HKprocess")) %dopar%
+{
+  run <- MannKendallLTP(maxT_annual[,j])
+}
+
+#stopCluster(nc)
+
+# results from the MannKendallLTP analysis
+# flow
+MK_standard <- lapply(Store, "[[","Mann_Kendall")
+Hsignif <- lapply(Store, "[[","Significance_of_H")
+MK_LTP <- lapply(Store, "[[","Mann_Kendall_LTP")
+
+flow_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(flow_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end flow -----------------
+# rainfall
+MK_standard <- lapply(Store_rain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_rain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_rain, "[[","Mann_Kendall_LTP")
+
+rain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(rain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end rainfall -----------------
+
+# gridded rainfall
+MK_standard <- lapply(Store_gridRain, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_gridRain, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_gridRain, "[[","Mann_Kendall_LTP")
+
+gridrain_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(gridrain_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end gridded rainfall -----------------
+
+# maxT
+MK_standard <- lapply(Store_maxT, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_maxT, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_maxT, "[[","Mann_Kendall_LTP")
+
+maxT_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(maxT_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+# -------- end maxT -----------------
+
+```
+
+
+## Summary of annual analysis in a table  
+This section brings together the data from all the annually Mann Kendall analyses and puts this into a table. These results are only for comparison and are not repeated in the manuscript. The are briefly discussed in the manuscript in the section on the Mann Kendall results.
+
+```{r annualTable}
+annualTable_flow <- data.frame(Catchment = Stations[,1], 
+                  "Streamflow tau MK" = flow_MKLTP[,1],
+                  "Streamflow Sen's slope" = flow_MKLTP[,4],
+                  "Streamflow p-value MK" = flow_MKLTP[,6],
+                  "Streamflow Hurst est" = flow_MKLTP[,7],
+                  "Streamflow Hurst p-value" = flow_MKLTP[,8],
+                  "Streamflow MK LTP p-value" = flow_MKLTP[,10])
+
+annualTable_rain <- data.frame(Catchment = Stations[,1], 
+                  "Rainfall tau MK" = rain_MKLTP[,1],
+                  "Rainfall Sen's slope" = rain_MKLTP[,4],
+                  "Rainfall p-value MK" = rain_MKLTP[,6],
+                  "Rainfall Hurst est" = rain_MKLTP[,7],
+                  "Rainfall Hurst p-value" = rain_MKLTP[,8],
+                  "Rainfall MK LTP p-value" = rain_MKLTP[,10])
+
+
+annualTable_grid <- data.frame(Catchment = Stations[,1], 
+        "Gridded Rainfall tau MK" = gridrain_MKLTP[,1],
+        "Gridded Rainfall Sen's slope" = gridrain_MKLTP[,4],
+        "Gridded Rainfall p-value MK" = gridrain_MKLTP[,6],
+        "Gridded Rainfall Hurst est" = gridrain_MKLTP[,7],
+        "Gridded Rainfall Hurst p-value" = gridrain_MKLTP[,8],
+        "Gridded Rainfall MK LTP p-value" = gridrain_MKLTP[,10])
+
+annualTable_maxT <- data.frame(Catchment = Stations[,1], 
+        "Max Temp tau MK" = maxT_MKLTP[,1],
+        "Max Temp Sen's slope" = maxT_MKLTP[,4],
+        "Max Temp p-value MK" = maxT_MKLTP[,6],
+        "Max Temp Hurst est" = maxT_MKLTP[,7],
+        "Max Temp Hurst p-value" = maxT_MKLTP[,8],
+        "Max Temp MK LTP p-value" = maxT_MKLTP[,10])
+
+pander(annualTable_flow,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised annual flow time series.
+       p-values are considered significant at the 5% level.")
+
+pander(annualTable_rain,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised annual Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+pander(annualTable_grid,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised annual gridded Rainfall time series.
+       p-values are considered significant at the 5% level.")
+
+pander(annualTable_maxT,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on de-seasonalised annual mean Maximum Temperature time series.
+       p-values are considered significant at the 5% level.")
+```

@@ -12,32 +12,30 @@
 ##  ~ Set up ~  ##
 ##################
 # SET WORKING DIRECTORY # #####
-setwd("/home/562/wxv562/MD_Projectdata")
-#setwd("c:/users/rver4657/owncloud/virtual experiments/virtexp/data")
+#setwd("/home/562/wxv562/MD_Projectdata")
+setwd("/project/RDS-FSC-CCH-RW/MDProjectdata")
 Today <- format(Sys.Date(),"%Y%m%d")
 
 #####
 # LOAD REQUIRED PACKAGES # #####
-require(ggplot2)
 require(hydromad)
+library(doParallel)
 require(Rcpp)
-# doMC only runs under Linux
-library(doMC)
-require(foreach)
-rcode_dir <-"/home/562/wxv562/MD_ProjectRCode" 
-#rcode_dir <- "c:/users/rver4657/owncloud/virtual experiments/virtexp/rcode/hpc"
+#####
+
+rcode_dir <-"/project/RDS-FSC-CCH-RW/MDProjectdata/Simhyd" 
 source(paste(rcode_dir,"Simhyd.R",sep="/"))
-#source("/g/data1/rr9/wxv562/MD_ProjectRCode/Simhyd.R")
 
 #####
 # read in the data
-load("ClimCh_project_MD.Rdata")
-GridRain <- GridRainAllDataout[,1:2]
-rm(flow_rain_maxT_weekly)
+load("Data/ClimCh_project_MD.Rdata")
+# load("Data/DailyDataIncludingGridded.Rdata")
+# GridRain <- GridRainAllDataout
+# rm(flow_rain_maxT_weekly)
 
 nc <- 10 # number of cores
 n <- 10 # number of SCE runs
-registerDoMC(cores=nc) 
+registerDoParallel(cores=nc) 
 
 ## 1. Optimisation functions
 # SCEOptim  function
@@ -63,7 +61,7 @@ Ofit <- function(mod,Store) {
 # Write a function to calibrate each station
 Calib.fun <- function(flow,Rain,maxT,station,nr=10,
                       start.t="1970-01-01", 
-                      end.t="1979-12-31") {
+                      end.t="2010-12-31") {
   # flow is the flow data (as a zoo series)
   # Rain is the rainfall data (as a zoo series)
   # maxT is maximum temperature as a zoo series
@@ -128,14 +126,14 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
 
 
 # 3. Now run over the stations
-for (i in c(4,8)) {
+#for (i in 1:length(Stations)) {
+for (i in 1:2) {
   #i <- 1 # testing
   # load(paste(Today,"CalibInputData.Rdata",sep="_"))
   # Create storage frames
   # Run the calibration												
   Output <- Calib.fun(flow = flow_zoo[,i],
-                      Rain = zoo(GridRain[GridRain$Station==Stations[i,1],2],
-                                 order.by=time(rain_zoo)),
+                      Rain = gridRain_zoo[,i],
                       maxT = maxT_zoo[,i], 
                       station = Stations[i,1], nr=n)
   save(Output,

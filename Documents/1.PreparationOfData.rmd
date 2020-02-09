@@ -10,10 +10,12 @@ output:
 ---
 ```{r packages, warning=F, message=F}
 require(zoo)
-require(ggplot2)
 require(pander)
 require(reshape2)
 require(xts)
+require(curl)
+require(tidyverse)
+require(lubridate)
 panderOptions('table.split.cells', 12)
 panderOptions('table.alignment.default', 'center')
 panderOptions('table.alignment.rownames', 'right')
@@ -31,7 +33,8 @@ This document is related to the manuscript "Disentangling climate change trends 
 ## sources of data
 As outlined in the manuscript, the original data were sourced from the following locations:
 Streamflow is from the Bureau of Meteorology (BOM) hydrological reference stations [http://www.bom.gov.au/water/hrs/](http://www.bom.gov.au/water/hrs/)
-Rainfall and temperature were obtained from the BOM gridded data and the BOM station data [http://www.bom.gov.au/climate/data-services/](http://www.bom.gov.au/climate/data-services/)
+Rainfall and temperature station data were obtained from the BOM station data [http://www.bom.gov.au/climate/data-services/](http://www.bom.gov.au/climate/data-services/)
+Gridded data were obtained from [ANUClimate collection in the NCI Catalogue](http://geonetworkrr9.nci.org.au/geonetwork/srv/eng/catalog.search#/metadata/f30e39a4-15dc-4038-a37f-7fd29744e46a) or via ANDS: [https://researchdata.ands.org.au/anuclimate-collection/983248](https://researchdata.ands.org.au/anuclimate-collection/983248) 
 
 ## Reading in the data
 The data consists of comma delimited (csv) files, as downloaded from the websites. All data cover the period 1970 - 2010.
@@ -149,25 +152,91 @@ maxT_zoo<-merge(COTTtemp.maxT,RUTHtemp.maxT,CORAtemp.maxT,
 
 ```
 
+### download the gridded rainfall data
+
+```{r gridRain}
+# define parts of the Thredds url links to access the data
+# commented out as speeds up compiling, data already downloaded
+# part1 <- "http://dapds00.nci.org.au/thredds/ncss/rr9/eMAST_data/ANUClimate/ANUClimate_v1-0_rainfall_daily_0-01deg_1970-2014?var=lwe_thickness_of_precipitation_amount&latitude="
+# part2 <- "&time_start=1970-01-01T00%3A00%3A00Z&time_end=2010-12-31T00%3A00%3A000&accept=csv_file"
+# 
+# for (i in 1:nrow(Stations)) {
+#   url <- paste(part1,Stations$Latitude[i],"&longitude=",
+#                Stations$Longitude[i],part2, sep="")
+#   
+#   curl_download(url,destfile=paste("data/",Stations[i,1],
+#                                    "_ANUclimRain.csv",sep=""))
+#   
+# }
+
+# combine ANUclim data together in a data frame similar to flow_zoo
+for (i in 1:nrow(Stations)) {
+    temp<-read.csv(paste("data/",Stations[i,1],
+                         "_ANUclimRain.csv",sep=""))
+    temp$time<-ymd(substr(temp$time,1,10))
+    temp <- temp %>%
+      select(time, `lwe_thickness_of_precipitation_amount.unit.mm.day.1.`)
+    colnames(temp) <- c("Date", "Rainfall")
+    assign(paste(Stations[i,1], "RainAC", sep=""), 
+           zoo(temp$Rainfall, order.by=temp$Date))
+  }
+  # merge 
+  rainAC_zoo<-merge(COTTRainAC, RUTHRainAC, CORARainAC, ELIZRainAC, COCHRainAC, 
+                  COENRainAC, SCOTRainAC, HELLRainAC, NIVERainAC, MURRRainAC, 
+                  SOUTRainAC, YARRRainAC, DOMBRainAC)  
+```
+
+
 ## Summarising to weekly data
 Because all the statistical analyses were run on weekly data, the summaries were all created the same way.
 
 ```{r weeksummary}
-for (i in 1:length(Stations[,1])) {
-  flow_t <- apply.weekly(flow_zoo[,i], sum)
-  if (i ==1) flow_weekly <- flow_t else flow_weekly <- merge(flow_weekly,flow_t,all=T)
-}
-colnames(flow_weekly) <- colnames(flow_zoo)
-for (i in 1:length(Stations[,1])) {
-  rain_t <- apply.weekly(rain_zoo[,i], sum)
-  if (i ==1) rain_weekly <- rain_t else rain_weekly <- merge(rain_weekly,rain_t,all=T)
-}
-colnames(rain_weekly) <- colnames(rain_zoo)
-for (i in 1:length(Stations[,1])) {
-  maxT_t <- apply.weekly(maxT_zoo[,i], mean)
-  if (i ==1) maxT_weekly <- maxT_t else maxT_weekly <- merge(maxT_weekly,maxT_t,all=T)
-}
-colnames(maxT_weekly) <- colnames(maxT_zoo)
+flow_weekly <- as.tibble(flow_zoo) %>%
+  group_by(year = year(time(flow_zoo)),week = week(time(flow_zoo))) %>%
+  summarise_at(vars(COTT_daily_flow:DOMB_daily_flow), sum, na.rm=T)
+
+dates <- ymd(paste(flow_weekly$year,"01","01",sep="-")) +
+  weeks(flow_weekly$week)
+# remove year and week column
+flow_weekly <- flow_weekly %>%
+  ungroup() %>%
+  select(COTT_daily_flow:DOMB_daily_flow)
+# rebuild as a zoo
+flow_weekly <- zoo(flow_weekly, order.by = dates)
+
+rain_weekly <- as.tibble(rain_zoo) %>%
+  group_by(year = year(time(rain_zoo)),week = week(time(rain_zoo))) %>%
+  summarise_at(vars(COTTRain:DOMBRain), sum, na.rm=T)
+
+# remove year and week column
+rain_weekly <- rain_weekly %>%
+  ungroup() %>%
+  select(COTTRain:DOMBRain)
+# rebuild as a zoo
+rain_weekly <- zoo(rain_weekly, order.by = dates)
+
+maxT_weekly <- as.tibble(maxT_zoo) %>%
+  group_by(year = year(time(maxT_zoo)),week = week(time(maxT_zoo))) %>%
+  summarise_at(vars(COTTtemp.maxT:DOMBtemp.maxT), sum, na.rm=T)
+
+# remove year and week column
+maxT_weekly <- maxT_weekly %>%
+  ungroup() %>%
+  select(COTTtemp.maxT:DOMBtemp.maxT)
+# rebuild as a zoo
+maxT_weekly <- zoo(maxT_weekly, order.by = dates)
+
+# gridded rainfall
+raingrid_weekly <- as.tibble(rainAC_zoo) %>%
+  group_by(year = year(time(rainAC_zoo)),week = week(time(rainAC_zoo))) %>%
+  summarise_at(vars(COTTRainAC:DOMBRainAC), sum, na.rm=T)
+
+# remove year and week column
+raingrid_weekly <- raingrid_weekly %>%
+  ungroup() %>%
+  select(COTTRainAC:DOMBRainAC)
+# rebuild as a zoo
+raingrid_weekly <- zoo(raingrid_weekly, order.by = dates)
 
 ```
 
@@ -210,6 +279,25 @@ for (j in 1:length(decade_start)) {
 rain_weekly_stack <- reshape(rain_weekly_stack, direction="long",
                              varying=2:14, sep=".")
 
+
+# Now do the same for raingridfall
+raingrid_weekly_stack <- data.frame(Date=time(raingrid_weekly),
+                                coredata(raingrid_weekly))
+colnames(raingrid_weekly_stack) <- c("Date", 
+                               paste("raingrid",Stations[,1],sep="."))
+
+# add a column for the decade
+for (j in 1:length(decade_start)) {
+  raingrid_weekly_stack$decade[as.Date(raingrid_weekly_stack$Date) >= 
+                             as.Date(decade_start[j]) &
+                             as.Date(raingrid_weekly_stack$Date) <= 
+                             as.Date(decade_end[j])] <- 
+    study_period_decades[j]
+}
+# stack
+raingrid_weekly_stack <- reshape(raingrid_weekly_stack, direction="long",
+                             varying=2:14, sep=".")
+
 # and for temperature
 maxT_weekly_stack <- data.frame(Date=time(maxT_weekly), 
                                 coredata(maxT_weekly))
@@ -232,21 +320,21 @@ maxT_weekly_stack <- reshape(maxT_weekly_stack, direction="long",
 # Now merge all together into one dataset
 flow_rain_maxT_weekly <- cbind(flow_weekly_stack[,1:4], 
                                rain_weekly_stack[,4],
-                               maxT_weekly_stack[,4])
+                               maxT_weekly_stack[,4],
+                               raingrid_weekly_stack[,4])
 colnames(flow_rain_maxT_weekly) <- c("Date","Decade", "Station", "Flow", 
-                                     "Rain", "MaxT")
+                                     "Rain", "MaxT", "gridRain")
 ```
 
 ## Gridded rainfall comparison
 
-Because of the size of the overall gridded rainfall data set, only the script that describes the extraction is given in the Rcode folder: **ExtractRasterPointGriddedRainfall.R**. However the data will be compared against the station rainfall data.
+This is a comparison of the gridded ANUCLIM rainfalldata against the station rainfall data.
 
 ```{r compare_grid_station, warning=F, fig.cap="Simple x-y plot comparing the gridded and the rainfall station data"}
-load("Data/GriddedRainfallData.Rdata")
-# this has a data.frame called output.z, which is the gridded data
-colnames(output.z) <- Stations[,1]
-GridRainAllDataout <- melt(as.data.frame(output.z))
-colnames(GridRainAllDataout) <- c("Station","gridRain")
+
+GridRainAllDataout <- as.tibble(rainAC_zoo) %>%
+  gather(key= "Station", value="gridRain", COTTRainAC:DOMBRainAC)
+
 GridRainAllDataout$Rain <- melt(as.data.frame(rain_zoo))[,2]
 GridRainAllDataout$Flow <- melt(as.data.frame(flow_zoo))[,2]
 GridRainAllDataout$maxT <- melt(as.data.frame(maxT_zoo))[,2]
@@ -258,49 +346,53 @@ print(xyp_rain)
 ```
 
 \newpage  
-Figure 1 shows that in general there is very little 1:1 agreement between the gridded and the station rainfall, but that is not that strange as it seems. The gridded rainfall is an interpolated surface based on several stations.   
+Figure 1 shows reasonable 1:1 agreement between the gridded and the station rainfall, The gridded rainfall is an interpolated surface based on several stations, so not all data should directly match.  
 To do another comparison, we should also compare the monthly data, just to check that we have actually extracted the right stations.
 
 ```{r compare_monthly, fig.cap="comparison of monthly rainfall data between gridded and station data"}
-raingrid_zoo_m <- aggregate(output.z,as.yearmon,sum,na.rm=T)
-rain_zoo_m <- aggregate(rain_zoo,as.yearmon,sum,na.rm=T)
-MonthRain <- melt(as.data.frame(raingrid_zoo_m))
-colnames(MonthRain) <- c("Station","gridRain")
-MonthRain$Rain <- melt(as.data.frame(rain_zoo_m))[,2]
 
-xyp_rain_m <- ggplot(data=MonthRain,aes(x=Rain,  y=gridRain))
-xyp_rain_m <- xyp_rain_m + geom_point() + facet_wrap(~Station)
-print(xyp_rain_m)
+gridRain_m <- as.tibble(rainAC_zoo) %>%
+  mutate(year=year(time(rainAC_zoo)), month= month(time(rainAC_zoo))) %>%
+  group_by(year, month) %>%
+  summarise_at(vars(COTTRainAC:DOMBRainAC), sum,na.rm=T) %>%
+  ungroup() %>%
+  gather(key = "Station", value= "gridRain", COTTRainAC:DOMBRainAC)
 
+rain_m <- as.tibble(rain_zoo) %>%
+  group_by(year=year(time(rain_zoo)), month= month((time(rain_zoo)))) %>%
+  summarise_all(sum, na.rm=T) %>%
+  ungroup() %>%
+  gather(key = "Station", value= "Rain", COTTRain:DOMBRain)
+
+plot_df <- rain_m %>%
+  mutate(gridRain = gridRain_m$gridRain) %>%
+  ggplot(aes(x=Rain,  y=gridRain)) + geom_point() +
+  facet_wrap(~Station)
+print(plot_df)
 ```
 
-That looks a little bit better, but there are clearly some issues with the gridded rainfall from the BOM.
+That looks a even better, which why we decided to use ANUClim rather than BOM gridded data from 2018
 
 \newpage
 
-Another way to compare the data is probably using a qqplot.
+Another way to compare the data is probably using a qqplot.This is a bit trickier, as we need to calculate quantiles
+We can only plot them against normal quantiles in ggplot()
 
 ```{r gridcompareqq, fig.cap="QQplot comparing gridded rainfall and station data"}
-# make a qqplot
-qqGridRain <- do.call(cbind,tapply(GridRainAllDataout$gridRain,
-                               GridRainAllDataout$Station,  
-                               FUN=quantile,seq(0,1,length=1000)))
-qqRain <- do.call(cbind,tapply(GridRainAllDataout$Rain,
-                               GridRainAllDataout$Station,    
-                               FUN=quantile,seq(0,1,length=1000),na.rm=T))
-qqGridRain_s <- melt(qqGridRain,measure.vars=1:13)
-qqRain_s <- melt(qqRain,measure.vars=1:13)
-Rainqq <- data.frame(Station=qqRain_s$Var2,qqRain=qqRain_s$value,
-                     qqGridRain=qqGridRain_s$value)
-xyp_rainqq <- ggplot(data=Rainqq,aes(x=qqRain,y=qqGridRain))
-xyp_rainqq <- xyp_rainqq + geom_point() + facet_wrap(~Station)
-xyp_rainqq <- xyp_rainqq + geom_abline(intercept = 0, slope = 1,
-                            col="darkred",linetype="dashed",size=1)
-
-print(xyp_rainqq)
+# make a combined data frame
+plot_df <- rain_m %>%
+  mutate(gridRain = gridRain_m$gridRain) %>%
+  # gather rain and gridRain
+  gather(key="rain_data_source", value="Rainfall", Rain:gridRain) %>%
+  # now plot using geom_qq
+  ggplot() + stat_qq(aes(sample=Rainfall, colour=rain_data_source), alpha=0.3) +
+  facet_wrap(~Station) + stat_qq_line(aes(sample=Rainfall),linetype="dashed") +
+  scale_colour_manual("Rainfall source", 
+                        values=c("Rain" = "red", "gridRain" = "blue"))
+print(plot_df)
 ```
 
-Figure 3 shows fairly good agreement across the distributions with only the high rainfall quantiles showing distinct deviations. This is logical as the gridded rainfall is a smoothed replica of the station data due to the interpolation.
+Figure 3 shows fairly good agreement across the distributions with only the high rainfall quantiles showing some deviations. This is logical as the gridded rainfall is a smoothed replica of the station data due to the interpolation.
 
 
 Another important characteristic of rainfall could be the memory,so it might be worth comparing autocorrelation graphs for the different series.
@@ -350,56 +442,16 @@ This again shows little difference between the autocorrelation functions, with p
 
 ## Storage, combining and publishing data
 
-The last thing to do is to combine the data into a storage data object to be read in during all the analysis. Two different objects need to be developed. One is the daily data, combining the gridded rainfall data and the station rainfall data. The second object combines all the weekly data, and this means the gridded data needs to be combined to weekly.
+The last thing to do is to combine the data into a storage data object to be read in during all the analysis. Two different objects need to be developed. One is the daily data, combining the gridded rainfall data and the station rainfall data. The second object combines all the weekly data.
 
-```{r GriddedToWeekly}
-for (i in 1:length(Stations[,1])) {
-  gridrain_t <- apply.weekly(output.z[,i], sum)
-  if (i ==1) {
-      gridRainWeekly <- gridrain_t 
-    } else {
-      gridRainWeekly <- merge(gridRainWeekly,gridrain_t,all=T)
-    }
-}
-colnames(gridRainWeekly) <- colnames(output.z)
-```
 
-### Stacking and merging into one dataset
-Now stack all the data together into one dataframe
-
-```{r StackAndMerge}
-gridRain_weekly_stack <- data.frame(Date=time(gridRainWeekly), 
-                                    coredata(gridRainWeekly))
-colnames(gridRain_weekly_stack) <- c("Date", paste("gridRain",
-                                          Stations[,1],sep="."))
-
-# add a column for the decade
-for (j in 1:length(decade_start)) {
-  gridRain_weekly_stack$decade[as.Date(gridRain_weekly_stack$Date) >=
-                                 as.Date(decade_start[j]) &
-                             as.Date(gridRain_weekly_stack$Date) <=
-                               as.Date(decade_end[j])] <- 
-    study_period_decades[j]
-}
-# stack
-gridRain_weekly_stack <- reshape(gridRain_weekly_stack, direction="long",
-                             varying=2:14, sep=".")
-
-# add to flow_rain_maxT_weekly
-weekGridRainAllDataout <- cbind(flow_rain_maxT_weekly,gridRain_weekly_stack[,4])
-colnames(weekGridRainAllDataout)[7] <- "gridRain"
-```
 
 ### Write data frames out as Rdata and csv
 
 This section creates the on disk csv files and Rdata objects to be used in the rest of the research.
 
 ```{r SaveWrite}
-save(weekGridRainAllDataout,
-     file="data/WeeklyDataIncludingGridded.Rdata")
-write.csv(weekGridRainAllDataout,
-          file="data/weeklyDataIncludingGridded.csv",
-          row.names=F)
+gridRain_zoo <- rainAC_zoo
 
 save(GridRainAllDataout,
      file="data/DailyDataIncludingGridded.Rdata")
@@ -432,17 +484,15 @@ catchments in columns",
 catchments in columns",
 "maxT_zoo: all maxT data for the catchments as a zoo data frame, 13
 catchments in columns",
+"gridRain_zoo: all gridded rainfall data for the catchments as a zoo data frame,
+13 catchments in columns",
 "GridRainAllDataout: all daily rainfall including gridded data stacked
 catchments",
-"weekGridRainAllDataout: all weekly rainfall including gridded data 
-stacked catchments",
 "The objects in the zip file are:",
 "This metadata file",
 "CatchmentCharact.csv",
 "flow_rain_maxT_weekly.csv: a dataframe with column headers Date, decade,
-station, Flow, Rain, maxT, stations are stacked",
-"weeklyDataIncludingGridded.csv: the weekly rainfall data included gridded
-as a stacked dataframe with 3 columns",
+station, Flow, Rain, maxT, gridRain stations are stacked",
 "DailyDataIncludingGridded.csv: the daily rainfall data included gridded
 as a stacked dataframe with 3 columns")
 writeLines(text,zz)
@@ -451,8 +501,8 @@ close(zz)
 
 # write as an RData file
 save("README_DataDescribe","flow_rain_maxT_weekly","Stations","flow_zoo",
-      "rain_zoo","maxT_zoo","GridRainAllDataout",
-     "weekGridRainAllDataout", file="Data/ClimCh_project_MD.Rdata")
+      "rain_zoo","maxT_zoo","gridRain_zoo","GridRainAllDataout",
+      file="Data/ClimCh_project_MD.Rdata")
 
 write.csv(flow_rain_maxT_weekly,file="data/flow_rain_maxT_weekly.csv",
           row.names=F)
@@ -462,6 +512,5 @@ zip("Data/ClimCh_project_MD.zip",
     files = c("data/README_DataDescription.txt",
               "data/flow_rain_maxT_weekly.csv",
               "data/DailyDataIncludingGridded.csv",
-              "data/weeklyDataIncludingGridded.csv",
               "data/CatchmentCharact.csv"))
 ```

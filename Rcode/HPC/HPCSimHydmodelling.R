@@ -14,29 +14,26 @@
 ##  ~ Set up ~  ##
 ##################
 # SET WORKING DIRECTORY # #####
-setwd("/home/562/wxv562/MD_Projectdata")
+setwd("/project/RDS-FSC-CCH-RW/MDProjectdata")
 Today <- format(Sys.Date(),"%Y%m%d")
 
 #####
 # LOAD REQUIRED PACKAGES # #####
-#require(ggplot2)
 require(hydromad)
+library(doParallel)
 require(Rcpp)
-# doMC only runs under Linux
-library(doMC)
-require(foreach)
-rcode_dir <-"/home/562/wxv562/MD_ProjectRCode" 
-#rcode_dir <- "c:/users/rver4657/owncloud/virtual experiments/virtexp/rcode/hpc"
+#####
+
+rcode_dir <-"/project/RDS-FSC-CCH-RW/MDProjectdata/Simhyd" 
 source(paste(rcode_dir,"Simhyd.R",sep="/"))
-#source("/g/data1/rr9/wxv562/MD_ProjectRCode/Simhyd.R")
 
 
 # read in the data
-load("ClimCh_project_MD.Rdata")
+load("Data/ClimCh_project_MD.Rdata")
 
 nc <- 10 # number of cores
 n <- 10 # number of SCE runs
-registerDoMC(cores=nc) 
+registerDoParallel(cores=nc) 
 
 ## 1. Optimisation functions
 # SCEOptim  function
@@ -48,7 +45,7 @@ SCEfit <- function(mod) {
   return(c(do.call(rbind,s[7:10])[,1],coef(fit.Q)))
 } 
 
-# fitByOptim function
+# fitByOptim function (not used)
 Ofit <- function(mod,Store) {
   bestFit <- fitByOptim(mod,objective = ~hmadstat("viney")(Q, X),
                         samples = nrow(Store), sampletype = "all.combinations", 
@@ -62,7 +59,7 @@ Ofit <- function(mod,Store) {
 # Write a function to calibrate each station
 Calib.fun <- function(flow,Rain,maxT,station,nr=10,
                       start.t="1970-01-01", 
-                      end.t="1979-12-31") {
+                      end.t="2010-12-31") {
   # flow is the flow data (as a zoo series)
   # Rain is the rainfall data (as a zoo series)
   # maxT is maximum temperature as a zoo series
@@ -126,8 +123,8 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
 
 
 # 3. Now run over the stations
-#for (i in 1:7) {
-  i <- 8 # testing
+for (i in 1:length(Stations)) {
+  #i <- 2 # testing
   # load(paste(Today,"CalibInputData.Rdata",sep="_"))
   # Create storage frames
   # Run the calibration												
@@ -139,7 +136,7 @@ Calib.fun <- function(flow,Rain,maxT,station,nr=10,
        file = paste(Today,paste(Stations[i,1], 
                                 "SimhydCalibOutput.Rdata", sep=""),sep="_"))
   rm(Output)
-#}
+}
 
 
 

@@ -21,16 +21,14 @@ rain_zoo: all rain data for the catchments as a zoo data frame, 13
 catchments in columns
 maxT_zoo: all maxT data for the catchments as a zoo data frame, 13
 catchments in columns
+gridRain_zoo: all gridded rainfall data for the catchments as a zoo data frame,
+13 catchments in columns
 GridRainAllDataout: all daily rainfall including gridded data stacked
 catchments
-weekGridRainAllDataout: all weekly rainfall including gridded data 
-stacked catchments
 The objects in the zip file are:
 This metadata file
 CatchmentCharact.csv
 flow_rain_maxT_weekly.csv: a dataframe with column headers Date, decade,
-station, Flow, Rain, maxT, stations are stacked
-weeklyDataIncludingGridded.csv: the weekly rainfall data included gridded
-as a stacked dataframe with 3 columns
+station, Flow, Rain, maxT, gridRain stations are stacked
 DailyDataIncludingGridded.csv: the daily rainfall data included gridded
 as a stacked dataframe with 3 columns
