@@ -7,10 +7,12 @@ output:
       fig_width: 7
       fig_height: 6
       fig_caption: true
+bibliography: StreamflowTrends.bib
 ---
 ```{r setup, warning=F, message=F}
 # root dir
 knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
+#knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
@@ -25,10 +27,7 @@ library(reshape2)
 This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository.
 
 # Introduction
-This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology. This is the fifth part of the series that calculates elasticities following the method described in the paper by Chiew (2006). 
-
-FRANCIS H. S. CHIEW (2006) Estimation of rainfall elasticity of streamflow in
-Australia, Hydrological Sciences Journal, 51:4, 613-625, DOI: 10.1623/hysj.51.4.613
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.). This is the fifth part of the series that calculates elasticities following the method described in the paper by @Chiew2006. 
 
 This method involves developing a several climate series which are linearly scaled by different percentages. The climate variables that are scaled are rainfall and potential ET in the original paper, while in this paper we scale rainfall and maximum Temperature (as a proxy for potential ET). The scaled climate series are then used for prediction in the model to derive climate elasticities based on the modelled monthly streamflow. This was done by regressing:
 
@@ -195,20 +194,20 @@ p <- ggplot(RR_df, aes(x = rain, y = flow)) +
   facet_wrap(~ Station,ncol=5) +
   guides(col = guide_legend(nrow = 3))
 p <- p + ggtitle("Rainfall - Runoff") +
-  theme(plot.title = element_text(lineheight=.8, face="bold"))+
+  #theme(plot.title = element_text(lineheight=.8, face="bold"))+
   xlab("Rainfall") +
-  theme(axis.title.x = element_text(face="bold",  size=12),
-        axis.text.x  = element_text(size=10)) +
+  theme(axis.title.x = element_text(face="bold",  size=rel(1.5)),
+        axis.text.x  = element_text(size=rel(1.2))) +
   ylab("Runoff") +
-  theme(axis.title.y = element_text(face="bold",  size=12),
-        axis.text.y  = element_text(size=10)) +
-  theme(legend.text = element_text( size = 10))+
-  theme(legend.title = element_text(size=12, face="bold")) +
-  theme(strip.text.x = element_text(size=12))
+  theme(axis.title.y = element_text(face="bold",  size=rel(1.5)),
+        axis.text.y  = element_text(size=rel(1.2))) +
+  theme(legend.text = element_text( size = rel(1.2)))+
+  theme(legend.title = element_text(size=rel(1.5), face="bold")) +
+  theme(strip.text.x = element_text(size=rel(1.2)))
 print(p)
 
 # publication quality
-tiff("../Manuscript/Figure2_RainfallRunoffPlot.tif",
+tiff("../Manuscript/Figure3_RainfallRunoffPlot.tif",
       width=16*480,height=12*480, res=600, compression="lzw")
 print(p)
 dev.off()
@@ -241,21 +240,21 @@ p <- ggplot(RRgr_df, aes(x = rain, y = flow)) +
   geom_abline(intercept=0, slope=1,col="grey50",lty=2,lwd=1) +
   facet_wrap(~ Station,ncol=5) +
   guides(col = guide_legend(nrow = 3))
-p <- p + ggtitle("Rainfall - Runoff (gridded)") +
-  theme(plot.title = element_text(lineheight=.8, face="bold"))+
+p <- p + #ggtitle("Rainfall - Runoff (gridded)") +
+  #theme(plot.title = element_text(lineheight=.8, face="bold"))+
   xlab("Gridded Rainfall") +
-  theme(axis.title.x = element_text(face="bold",  size=rel(2)),
-        axis.text.x  = element_text(size=rel(1.5),
-                                    angle=45, vjust=1)) +
+  theme(axis.title.x = element_text(face="bold",  size=rel(1.5)),
+        axis.text.x  = element_text(size=rel(1.2),
+                                    angle=45, vjust=0.5, hjust=0.5)) +
   ylab("Runoff") +
-  theme(axis.title.y = element_text(face="bold",size=rel(2)),
-        axis.text.y  = element_text(size=rel(1.5))) +
-  theme(legend.text = element_text( size=rel(1.5)))+
-  theme(legend.title = element_text(size=rel(2), face="bold")) +
-  theme(strip.text.x = element_text(size=rel(2)))
+  theme(axis.title.y = element_text(face="bold",size=rel(1.5)),
+        axis.text.y  = element_text(size=rel(1.2))) +
+  theme(legend.text = element_text( size=rel(1.2)))+
+  theme(legend.title = element_text(size=rel(1.5), face="bold")) +
+  theme(strip.text.x = element_text(size=rel(1.5)))
 print(p)
 # publication quality
-tiff("../Manuscript/Figure2_GriddedRainfallRunoffPlot.tif",
+tiff("../Manuscript/Figure3_GriddedRainfallRunoffPlot.tif",
       width=8*480,height=6*480, res=600, compression="lzw")
 print(p)
 dev.off()
@@ -267,6 +266,10 @@ dev.off()
 # Save the data
 write.csv(RR_df,
       file="Data/RainfallRunoff.csv",row.names=F)
+
+write.csv(RRgr_df,
+      file="Data/RainfallRunoff_gridded.csv",row.names=F)
+
 ```
 
 ## Saving output for later

@@ -29,7 +29,7 @@ This document is related to the manuscript "Disentangling climate change trends 
 
 In particular, this part extracts the best parameters of the modelling, plots the performance distributions and extracts the residuals to be analysed in a further script using Mann Kendall (this is separated because this takes quite long to run). Finally a comparison between the non-parametric epsilon (sensitivity) and the model based epsilon is plotted for both gridded and non-gridded rainfall. 
 
-This is ultimately related to *Figure 3, Figure 4 and Figure 9* in the manuscript.  *Figure 9* is generated in a different script, as this is the Mann Kendall analysis of the residuals of the models.
+This is ultimately related to *Figure 4, Figure 5 and Figure 8* in the manuscript.  *Figure 8* is generated in a different script, as this is the Mann Kendall analysis of the residuals of the models.
 
 To recap, we have 4 different High Performance Computing results for each of the 13 catchments. In each of these the two models (GR4J and SimHyd) were fitted to 40 years of climate data (1970 - 2010). However, there are results for both station rainfall and gridded rainfall to make sure there is no difference between these. As we have seen in the non-parametric epsilon calculation, there is no major difference between the two rainfall data sets, and it is not necessarily clear, which one of these is a better data set.
 
@@ -655,22 +655,21 @@ print(p)
 
 OutputMod <- rbind(OutputMod_GridGR4J,
                    OutputMod_GridSimHyd)
-p <- ggplot(OutputMod,aes(station,r.squared)) +  geom_boxplot()
+p <- ggplot(OutputMod,aes(station,r.squared,colour=model)) +  geom_boxplot(aes(fill=model,colour=model), alpha = 0.5)
 p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
-                      size=5,aes(colour=rel.bias))
-p <- p + facet_wrap(~model) +
+                      size=5)
+p <- p + facet_wrap(~model) + theme_bw() +
   xlab("Station") + ylab("Nash Sutcliffe Efficiency")
 p <- p + theme(axis.text.x = element_text(size = rel(2), angle = 45,
                                           vjust=0.5),
                strip.text=element_text(size=rel(2), face = "bold"),
                axis.text.y = element_text(size = rel(2)),
-               axis.title.x = element_text(size=rel(2), vjust=0),
-               axis.title.y = element_text(size=rel(2), face = "bold.italic"))
+               axis.title.x = element_text(size=rel(1.5), vjust=0),
+               axis.title.y = element_text(size=rel(1.5), face = "bold"),
+               legend.position = "none") 
                
 print(p)
-#labels <- c(GR4JGriddedData = "GR4J Gridded Rainfall Data", SimHydGridStationData = "SimHyd Gridded Rainfall Data")
-#p <- p + facet_grid(. ~ model, labeller=labeller(model = labels))
-tiff("../Manuscript/Figure4_ModelCalStats.tif",
+tiff("../Manuscript/Figure5_ModelCalStats.tif",
       width=16*480,height=12*480, res=600, compression="lzw")
 print(p)
 dev.off()

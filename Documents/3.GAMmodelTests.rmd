@@ -3,10 +3,11 @@ title: "GAM analysis of the weekly data"
 author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
 date: "`r Sys.Date()`"
 output: 
-    pdf_document:
-      fig_width: 7
+    pdf_document: 
+      fig_caption: yes
       fig_height: 6
-      fig_caption: true
+      fig_width: 7
+bibliography: StreamflowTrends.bib
 ---
 ```{r setup, warning=F, message=F}
 # root dir
@@ -31,7 +32,7 @@ storedir <- "d:/cloudstor/virtual experiments"
 This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository
 
 # Introduction
-This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology.  
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.).  
 This part of the series covers the analysis of the streamflow data using Generalised Additive models (GAM) testing for a trend in the data, or testing for a trend in the residuals. In particular, this extends the Mann Kendall analysis, as the Mann Kendall tau only indicates a strength, significance and direction of the trend, but does not quantify the magnitude of the trend.  
 The different models are outlined in **Table 2** in the main manuscript. The methods describe in detail how the GAM are developed with reference to the underlying theory. In the analysis, the trend models are fitted to flow and rain data > 0, as this means the log transformation is better interpretable. In the end, the analysis is interested in changes in the positive flow values. A binary model could be fit to check if there is any change in the number of weeks or days with rainfall.  
 This document follows **Table 2** in the series of models, so the headings (and model numbers) relate to this table. 
@@ -549,13 +550,13 @@ hp <- hp + facet_wrap(~ catch,ncol=5)
 p_value <- ifelse(real_df$pvalue<0.05,"< 0.05",">= 0.05")
 hp <- hp + geom_point(data=real_df,aes(x=tau, y=0,colour=p_value),
                 shape=16,size=5) +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Residuals Streamflow after GAM") #+
+  facet_wrap(~ catch,ncol=5)#+ ggtitle("Residuals Streamflow after GAM") #+
 hp <- hp + scale_colour_grey(start = 0, end = 0.6)
 print(hp)
-save(hp, file="../projectdata/Figure8ResidGAM_MDPaper.Rdata")
+save(hp, file="../projectdata/Figure7ResidGAM_MDPaper.Rdata")
 save(real_df, file="../projectdata/MKResidGAM_MDPaper.Rdata")
-# # production quality tiff, this is Figure 8 in the manuscript
-tiff("../manuscript/Figure8_ResidGAM_MDPaper.tif",res=600,compression="lzw",
+# # production quality tiff, this is Figure 7 in the manuscript
+tiff("../manuscript/Figure7_ResidGAM_MDPaper.tif",res=600,compression="lzw",
      width=10*480,height=10*480)
 print(hp)
 dev.off()

@@ -24,7 +24,7 @@ library(ggplot2)
 This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository. 
 
 # Introduction
-This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology.  
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted.
 
 # Back transformation
 This document is related to the *[3.GAMmodelTest.pdf](./3.GAMmodelTests.pdf)* document and is to explain the back transformation used in the `gamm()` and `gls()` regressions, which are essentially the following type of regression equation  

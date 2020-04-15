@@ -7,11 +7,12 @@ output:
       fig_width: 7
       fig_height: 6
       fig_caption: true
+bibliography: StreamflowTrends.bib
 ---
 ```{r setup, echo=F}
 # root dir
-#knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
-knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
+#knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -28,7 +29,7 @@ This rmarkdown document and the resulting pdf are stored on  [github](https://gi
 This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), originally submitted to Journal of Hydrology, but since that time modified and rewritten and submitted to a different journal. 
 This is the sixth part of the series that analyses the results from the GR4J and SimHyd model fitting on the High Performance computer Artemis at the University of Sydney. The scripts related to the high performance computing and the HPC scripts are stored in the Rcode/HPC folder.
 
-In particular, this part runs the Long Time Period Mann Kendall [@Hamed_2008] analysis on the weekly residuals of the rainfall-runoff models calibrated on the overall timeseries. The idea is that if the original timeseries is non-stationary and contains a trend then this trend will show up in the resdiduals. In the original submission we analysed this simply with a Mann-Kendall analysis. In this version we extend this to include @Hamed_2008 approach that accounts for serial correlation. This analysis finally generates  *Figure 9*
+In particular, this part runs the Long Time Period Mann Kendall [@Hamed2008] analysis on the weekly residuals of the rainfall-runoff models calibrated on the overall timeseries. The idea is that if the original timeseries is non-stationary and contains a trend then this trend will show up in the resdiduals. In the original submission we analysed this simply with a Mann-Kendall analysis. In this version we extend this to include @Hamed2008 approach that accounts for serial correlation. This analysis finally generates  *Figure 9*
 
 To recap, we have 4 different High Performance Computing results for each of the 13 catchments. In each of these the two models (GR4J and SimHyd) were fitted to 40 years of climate data (1970 - 2010). However, there are results for both station rainfall and gridded rainfall to make sure there is no difference between these. As we have seen in the non-parametric epsilon calculation, there is no major difference between the two rainfall data sets, and it is not necessarily clear, which one of these is a better data set.
 
@@ -379,7 +380,7 @@ p1 <- p1 +   xlab("Station") +
 # p1 <- p1 + geom_text(data = ann_text,label = "CORA: 1 data point trend > 2")
 
 
-tiff("../Manuscript/Figure9_ModelResidualTrendPlot.tif",
+tiff("../Manuscript/Figure8_ModelResidualTrendPlot.tif",
   width=16*480,height=12*480,
      res=600, compression="lzw")
 print(p1)
@@ -387,5 +388,5 @@ dev.off()
 
 
 # Write away the data
-save(plot.df,file="../ProjectData/Figure9Results.Rdata")
+save(plot.df,file="../ProjectData/Figure8Results.Rdata")
 ```

@@ -10,8 +10,8 @@ output:
 ---
 ```{r setup, warning=F, message=F}
 # root dir
-#knitr::opts_knit$set(root.dir = "D:/Cloudstor/Virtual Experiments/VirtExp")
-knitr::opts_knit$set(root.dir ="C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir = "D:/Cloudstor/Virtual Experiments/VirtExp")
+#knitr::opts_knit$set(root.dir ="C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
@@ -25,7 +25,7 @@ library(reshape2)
 This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository
 
 # Introduction
-This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology. This is the fourth document as part of the response to reviewers of earlier versions of the manuscript outlining in detail the generation of the flow duration curves. These figures have now been removed from the manuscript.
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted . This is the fourth document as part of the response to reviewers of earlier versions of the manuscript outlining in detail the generation of the flow duration curves. These figures have now been removed from the manuscript for a later submission.
 
 The key idea in this analysis is that by comparing the flow duration curves by decade, we might be able to pick up where exactly the rainfall and the flow distribution have changed. An alternative analysis of the rainfall using double mass curves is also presented.
 
