@@ -13,6 +13,8 @@ bibliography: StreamflowTrends.bib
 # root dir
 knitr::opts_knit$set(root.dir = 
                        "d:/cloudstor/Virtual Experiments/VirtExp")
+#knitr::opts_knit$set(root.dir = 
+#                       "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
@@ -26,6 +28,7 @@ library(doParallel)
 library(foreach)
 
 storedir <- "d:/cloudstor/virtual experiments"
+#storedir <- "C:/Users/rver4657/ownCloud/Virtual Experiments"
 
 ```
 
@@ -209,7 +212,7 @@ rm(Store_GridRain)
 This model analyses flow as a function of rainfall only. This is therefore an analysis of the rainfall runoff coefficient, taking into account a possible time trend in the data. If the trend in this analysis is significant, then this is a measure of how the rainfall runoff coefficient has changed over time.  
 Again the analysis is run twice, once with station rainfall data (model 3a) and once with gridded rainfall data (model 3b).
 
-For the GAMM models, the flexibility of the smooths is constrained to be k = 5 [@wood2006]. This should be flexible enough for general purposes and not lead to overfitting. However, we needed to use k = 5 rather than a stiffer k = 3 to allow convergence for some of the models.
+For the GAMM models, the flexibility of the smooths is constrained to be k = 5 [@Wood2006]. This should be flexible enough for general purposes and not lead to overfitting. However, we needed to use k = 5 rather than a stiffer k = 3 to allow convergence for some of the models.
 
 ## Station rainfall data  
 
@@ -553,15 +556,10 @@ hp <- hp + geom_point(data=real_df,aes(x=tau, y=0,colour=p_value),
   facet_wrap(~ catch,ncol=5)#+ ggtitle("Residuals Streamflow after GAM") #+
 hp <- hp + scale_colour_grey(start = 0, end = 0.6)
 print(hp)
-save(hp, file="../projectdata/Figure7ResidGAM_MDPaper.Rdata")
-save(real_df, file="../projectdata/MKResidGAM_MDPaper.Rdata")
-# # production quality tiff, this is Figure 7 in the manuscript
-tiff("../manuscript/Figure7_ResidGAM_MDPaper.tif",res=600,compression="lzw",
-     width=10*480,height=10*480)
-print(hp)
-dev.off()
 
-pander(real_df, caption="Mann Kendall results for the GAMM residuals, ref Figure 8")
+save(real_df, file="../projectdata/MKResidGAM_MDPaper.Rdata")
+
+pander(real_df, caption="Mann Kendall results for the GAMM residuals")
 rm(Store_FwRE2)
 ```
 
@@ -713,20 +711,40 @@ real_df <- data.frame(pvalue = as.numeric(MK_resid[,2]),
                       type=rep("real",nrow(MK_resid)))
 # A histogram of taus
 
-hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
+hp <- ggplot(sig_set_a, aes(x=tau)) + 
+  geom_histogram(binwidth=0.03,fill="blue", alpha=0.5)
 # Histogram of significant tau's, divided by catch
 # With panels that have the same scaling, but different range
 # (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5)
+hp <- hp + facet_wrap(~ catch,ncol=5) + theme_bw()
 # add a red point for the real slope from the data
 p_value <- ifelse(real_df$pvalue<0.05,"< 0.05",">= 0.05")
 hp <- hp + geom_point(data=real_df,aes(x=tau, y=0,colour=p_value),
                 shape=16,size=5) +
-  facet_wrap(~ catch,ncol=5)+ ggtitle("Residuals Streamflow after GAM") #+
-hp <- hp + scale_colour_grey(start = 0, end = 0.6)
+  facet_wrap(~ catch,ncol=5) #+ ggtitle("Residuals Streamflow after GAM") #+
+hp <- hp + scale_colour_manual(values = c("< 0.05" = "red", 
+                                          ">= 0.05" = "blue"))
+hp <- hp + theme(axis.text.x = element_text(angle=45,
+                                            vjust = 0.5,
+                                            hjust = 0.5, 
+                                            size = rel(1.2)),
+                 axis.text.y = element_text(size = rel(1.2)),
+                 axis.title = element_text(size=rel(1.5)),
+                 strip.text = element_text(size=rel(1.5), 
+                                           face = "bold"))
 print(hp)
 
 save(real_df, file="../projectdata/GrMKResidGAM_MDPaper.Rdata")
+save(hp, file="../projectdata/Figure7ResidGAM_MDPaper.Rdata")
+#
+# # production quality tiff, this is Figure 7 in the manuscript
+tiff("../manuscript/Figure7_ResidGAM_MDPaper.tif",res=600,compression="lzw",
+     width=10*480,height=10*480)
+print(hp)
+dev.off()
+
+
+
 
 pander(real_df, caption="Mann Kendall results for the GAMM residuals with gridded rainfall")
 rm(Store_FwGRE2)

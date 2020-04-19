@@ -10,7 +10,8 @@ output:
 ---
 ```{r setup, warning=F, message=F}
 # root dir
-knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
+#knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
@@ -320,16 +321,17 @@ real_df_f <- data.frame(pvalue = as.numeric(real[,2]),
 sig_set_f <- rbind(sig_set_a,real_df_f)
 
 # Plot a histogram of taus
-hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
+hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,fill="blue", alpha =0.5)
 
 # Histogram of significant tau's, facetted by catchment
 # With panels that have the same scaling, 
 # but different range (and therefore different physical sizes)
-hp <- hp + facet_wrap(~ catch,ncol=5) + ggtitle("Streamflow")
+hp <- hp + facet_wrap(~ catch,ncol=5) #+ ggtitle("Streamflow")
+hp <- hp + theme_bw()
 # add a red point for the real slope from the data
 p_value <- ifelse(real_df_f$pvalue<0.05,"< 0.05",">= 0.05")
 hp <- hp + geom_point(data=real_df_f,aes(x=tau, y=0,colour=p_value),
-                shape=16,size=5) + scale_colour_grey(start = 0, end = 0.6) +
+                shape=16,size=5) + scale_colour_manual(values = c("< 0.05" = "red", ">= 0.05" = "blue")) +
   facet_wrap(~ catch,ncol=5)#+ ggtitle("Deseasonalised Streamflow") #+
 # show figure
 print(hp)

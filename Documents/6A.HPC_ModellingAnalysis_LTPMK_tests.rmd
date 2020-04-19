@@ -11,8 +11,8 @@ bibliography: StreamflowTrends.bib
 ---
 ```{r setup, echo=F}
 # root dir
-knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
-#knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+#knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -320,7 +320,7 @@ plot.df1 <- as_tibble(plot.df1) %>%
 
 ```{r Figure9, fig.width=8, fig.height = 11, fig.cap="Analysis of residual trends (1970 - 2010) between modelled and observed data for the different rainfall runoff models. Boxplots represent the range of results from the 10 shuffled complex evolution calibrations. Average signficance of the slopes based on the standard MK analysis is indicated"}
 # Now plot the actual trends
-p <- ggplot(plot.df1, aes(x = Station, y = Sen_slope)) +
+p <- ggplot(plot.df1, aes(x = Station, y = Sen_slope*52)) +
   geom_boxplot(coef=0.5,aes(colour =significance_MK)) +  facet_wrap(~ Model + Method,ncol=1,scales="free") 
 p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
                       lwd=2, alpha=0.5)
@@ -330,7 +330,7 @@ p <- p + ggtitle("Residual Sen's slope trends: predicted - observed 1970 - 2010"
   xlab("Station") +
   theme(axis.title.x = element_text(face="bold",  size=16),
         axis.text.x  = element_text(size=12)) +
-  ylab("Trend estimate or Mann Kendall tau") +
+  ylab("Trend estimate (mm/year) or Mann Kendall tau") +
   theme(axis.title.y = element_text(face="bold",  size=16),
         axis.text.y  = element_text(size=12)) +
   theme(legend.text = element_text(size = 12))+
@@ -357,16 +357,20 @@ For this only plot the results from the non-gridded rainfall as the performance 
 plot.df2 <- plot.df1[grep("Gridded data",plot.df1$Method) ,]
 
 
-p1 <- ggplot(plot.df2, aes(x = Station, y = Sen_slope)) +
-  scale_colour_manual(name="significance",values=c("yes" ="black", "no"="gray75"))  +
-  geom_boxplot(coef=0.5, aes(colour = significance_MK)) +  facet_wrap(~ Model,ncol=1,scales="free") 
+p1 <- ggplot(plot.df2, aes(x = Station, y = Sen_slope*52)) +
+  scale_fill_manual(name="significance",values=c("yes" ="red", "no"="blue"))  +
+  scale_colour_manual(name="significance",
+                      values=c("yes" ="red", "no"="blue"))  +
+  geom_boxplot(coef=0.5, aes(fill = significance_MK, 
+                             colour = significance_MK)) +  
+  facet_wrap(~ Model,ncol=1,scales="free") 
 
 p1 <- p1 + stat_summary(fun.y=mean, geom="point", shape=16,lwd=2)
 
 p1 <- p1 +   xlab("Station") +
   theme(axis.title.x = element_text(face="bold",  size=16),
         axis.text.x  = element_text(size=12)) +
-  ylab("Sen's slope (mm/week)") +
+  ylab("Sen's slope (mm/year)") +
   theme(axis.title.y = element_text(face="bold",  size=16),
         axis.text.y  = element_text(size=12)) +
   theme(legend.text = element_text(size = 12))+
