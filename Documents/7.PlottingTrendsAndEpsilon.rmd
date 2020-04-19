@@ -7,19 +7,18 @@ output:
       fig_width: 7
       fig_height: 6
       fig_caption: true
+bibliography: StreamflowTrends.bib
 ---
 ```{r setup, warning=F, message=F}
 # root dir
-knitr::opts_knit$set(root.dir = 
-                       "D:/Cloudstor/Virtual Experiments/VirtExp")
-#"C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir ="D:/Cloudstor/Virtual Experiments/VirtExp")
+#knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
 library(tidyverse)
 library(xts)
 library(zoo)
-library(ggplot2)
 library(reshape2)
 library(hydromad)
 library(Kendall)
@@ -29,12 +28,9 @@ library(mgcv)
 This rmarkdown document and the resulting pdf are stored on [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository.
 
 # Introduction
-This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology. This is the seventh part of the series that performs the Mann-Kendall and gam trend analysis on the residuals calculated in part 6, as well as comparing the non-parametric $\epsilon$ from the fifth part of the series with the numerical modelling $\epsilon$ following Chiew (2006).
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.). This is the seventh part of the series that performs the Mann-Kendall and gam trend analysis on the residuals calculated in part 6, as well as comparing the non-parametric $\epsilon$ from the fifth part of the series with the numerical modelling $\epsilon$ following @Chiew2006.
 
-FRANCIS H. S. CHIEW (2006) Estimation of rainfall elasticity of streamflow in
-Australia, Hydrological Sciences Journal, 51:4, 613-625, DOI: 10.1623/hysj.51.4.613
-
-This script also generates final versions of *Figure 3* and *Figure 9* in the manuscript. 
+This script also generates final versions of *Figure 4* and *Figure 8* in the manuscript. 
 
 To recap, we have residuals for predictions between 1970 - 2010 of calibrated models across 13 catchments (calibrated on 1970 - 2010). However, there are results for both station rainfall and gridded rainfall for both the SimHyd and GR4J models to make sure there is no difference between these. For all the fits, performances were extracted and initial plots made in part 6 of the series. It is clear from those plots (which will be partly repeated here) that SimHyd performed more poorly than GR4J.
 
@@ -169,7 +165,9 @@ for (i in seq_along(Stations[,1])){
 
 ```{r SimhydGrid_residuals_MK}
 # read in the residual data list from part 6 for all stations
-load(file="../ProjectData/residuals/SimHydGridHPCresiduals.Rdata")
+#load(file="../ProjectData/residuals/SimHydGridHPCresiduals.Rdata")
+# Rdata file seems unreadable, use later RDS file
+Residuals <- readRDS("../ProjectData/residuals/SimHydGridHPCresiduals.RDS") 
 
 SimhydGrid_results <- list()
 
@@ -291,18 +289,19 @@ colnames(OutputChiew)[7] <- "np_eta_p"
 ## A plot comparing the model derived and the non-parametric $\epsilon$ values
 This plot shows the non-parametric $\epsilon$ values in comparison with the model derived values. A thing to observe is thata the model derived $\epsilon$ values for SimHyd are essentially all the same (with some small variation), regardless of the gridded or non-gridded data. In contracst the values derived using the GR4J modelling are much more variable. However for both models, it is clear that the model derived $\epsilon$ values are much lower than most of the non-parametric values. However, it needs to be kept in mind that the model derived values are based on daily data, while the non-parametric values, which are much more aligned with the Chiew (2006) values, are again based on annual data.
 
-This is *Figure 3* in the manuscript
+This is *Figure 4* in the manuscript
 
 ```{r epsilonPlot, fig.width=8, fig.height = 11, fig.cap="Rainfall elasticities calculated using a non-parametric method (Chiew, 2006) (grey triangles) and using two different rainfall runoff models (SimHyd and GR4J) and scaled gridded and non-griddd rainfall and temperature data (black dots (means) and grey boxplots with small black dots as outliers). The model calibrations were replicated 10 times to cover parameter equifinality. This equifinality is represented by the boxplots."}
 
 p <- ggplot(OutputChiew, aes(x = station, y = eta_p)) +
-  geom_boxplot(col="gray50", coef=0.5) +  facet_wrap(~ mod, ncol=1) +
-  stat_summary(fun.y=mean, geom="point", shape=16, col="black",lwd=2)
+  geom_boxplot(fill ="blue", coef=0.5, alpha=0.5) +  facet_wrap(~ mod, ncol=1) +
+  stat_summary(fun.y=mean, geom="point", shape=16, col="blue",lwd=2)
 
 p <- p +  geom_point(aes(x=station, y=np_eta_p),
-           shape=17,size=3,colour="gray25", coef=0.5) + 
+           shape=17,size=3,colour="red", fill="red") + 
         facet_wrap(~ mod,ncol=1)
 p <- p +  xlab("Station") + ylim(-0.5,3) +
+  theme_bw() +
   theme(axis.title.x = element_text(face="bold",  size=14),
         axis.text.x  = element_text(size=12)) +
   ylab("Rainfall Elasticity") +
@@ -313,19 +312,20 @@ p <- p +  xlab("Station") + ylim(-0.5,3) +
   theme(strip.text.x = element_text(size=14, face="bold"))
 p
 
-# Only station rainfall
+# Only gridded rainfall
 OutputChiew2 <- OutputChiew[(OutputChiew$mod == "GR4JGrid" |
                               OutputChiew$mod == "SimHydGrid"),]
 
 p2 <- ggplot(OutputChiew2, aes(x = station, y = eta_p)) +
-  geom_boxplot(col="gray50", coef=0.5) +  facet_wrap(~ mod, ncol=1) +
-  stat_summary(fun.y=mean, geom="point", shape=16, col="black",lwd=2, size=3)
+  geom_boxplot(fill="blue", alpha=0.5) +  facet_wrap(~ mod, ncol=1) +
+  stat_summary(fun.y=mean, geom="point", shape=16, col="blue",lwd=2, size=3)
 
 p2 <- p2 +  geom_point(aes(x=station, y=np_eta_p),
-           shape=17,size=5,colour="gray50", coef=0.5) 
+           shape=17,size=5,colour="red", fill="red") 
 #+ 
 #        facet_wrap(~ mod,ncol=1)
 p2 <- p2 +  xlab("Station") + ylim(-0.5,3) +
+  theme_bw() +
   theme(axis.title.x = element_text(face="bold",  size=rel(2)),
         axis.text.x  = element_text(size=rel(1.5))) +
   ylab("Rainfall Elasticity") +
@@ -340,14 +340,14 @@ labels <- c(GR4JGrid = "GR4J Gridded Rainfall Data", SimHydGrid = "SimHyd Gridde
 p2 <- p2 + facet_wrap(. ~ mod, labeller=labeller(mod = labels), ncol=1)
 
 
-tiff("../manuscript/Figure3_RainfallElasticityPlot.tif",
+tiff("../manuscript/Figure4_RainfallElasticityPlot.tif",
   width=16*480,height=12*480,
      res=600, compression="lzw")
 print(p2)
 dev.off()
 
 # Write away the data
-save(OutputChiew2,file="../ProjectData/Figure3Results.Rdata")
+save(OutputChiew2,file="../ProjectData/Figure4Results.Rdata")
 
 ```
 

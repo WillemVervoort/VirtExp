@@ -28,7 +28,7 @@ knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/
 This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository
 
 ## Introduction
-This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology. This document outlines the preparation of the original data into the dataframes that have been analysed in the project. The decision making on how stations were identified, is outlined in the methods of the submitted manuscript. This document is aimed at documenting the code of the analysis.
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.). This document outlines the preparation of the original data into the dataframes that have been analysed in the project. The decision making on how stations were identified, is outlined in the methods of the submitted manuscript. This document is aimed at documenting the code of the analysis.
 
 ## sources of data
 As outlined in the manuscript, the original data were sourced from the following locations:

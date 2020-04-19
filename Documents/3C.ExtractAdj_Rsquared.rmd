@@ -11,8 +11,8 @@ output:
 
 ```{r setup, warning=F, message=F}
 # root dir
-knitr::opts_knit$set(root.dir = 
-                       "d:/cloudstor/Virtual Experiments/VirtExp")
+#knitr::opts_knit$set(root.dir = "d:/cloudstor/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
@@ -24,15 +24,16 @@ library(Kendall)
 library(doParallel)
 library(foreach)
 
-storedir <- "d:/cloudstor/virtual experiments"
-
+#storedir <- "d:/cloudstor/virtual experiments"
+storedir <- "C:/Users/rver4657/ownCloud/Virtual Experiments"
 ```
 
 
 This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository
 
 # Introduction
-This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted to Journal of Hydrology.
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.).
+
 This section only extracts the performance results (Ajusted r_squared) from the GAMM results of model 4 and 5 from part 3 of the series, [3.GAMmodelTests.pdf](./3.GAMmodelTests.pdf)
 
 # Read in the results
@@ -46,7 +47,7 @@ This section only extracts the performance results (Ajusted r_squared) from the 
 #                 sep = "/"))
 
 
-#Gridded raifnall model 4
+#Gridded rainfall model 4
 load(paste(storedir,
                 "projectdata/StoreFwGRE_TrendAnalysis.RData",
                 sep="/"))
@@ -100,8 +101,8 @@ for (i in 1:13) {
 
 Model5Grid_AdjR2 <- do.call(rbind,Model5Grid_AdjR2)
 
-Results <- tibble(Station= do.call(rbind, lapply(1:length(Store_FwGRE), 
-                          function(i) rbind(Store_FwGRE[[i]][[2]][[1]])))$Station,
+Results <- tibble(Station= do.call(rbind, lapply(1:length(Store_FwRE2), 
+                          function(i) rbind(Store_FwRE2[[i]][[2]][[1]]))),
                   Model4_Grid = Model4Grid_AdjR2, Model5_Station = Model5Station_AdjR2,
                   Model5_Grid = Model5Grid_AdjR2)
 pander(Results, caption="Adjusted r-squared for models 4 and 5 from the GAMM analysis")
