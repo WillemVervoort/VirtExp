@@ -11,8 +11,13 @@ output:
 ```{r setup, warning=F, message=F}
 # root dir
 knitr::opts_knit$set(root.dir = 
+<<<<<<< HEAD
 #                       "D:/Cloudstor/Virtual Experiments/VirtExp")
                        "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+=======
+                       "D:/Cloudstor/Virtual Experiments/VirtExp")
+                       #"C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+>>>>>>> 5c57c98bd180740bc5b386c2b504375197213f26
 knitr::opts_chunk$set(echo = TRUE)
 # LOAD REQUIRED PACKAGES # #####
 library(pander)
@@ -102,7 +107,11 @@ load("../projectdata/StoreFwGRE2_TrendAnalysis.RData")
 Flow_m5 <- do.call(rbind, lapply(1:length(Store_FwGRE2),
                           function(i) rbind(Store_FwGRE2[[i]][[2]])))
 # load "real_df" with results Mann-Kendall for Model 5
+<<<<<<< HEAD
 load("../projectdata/GrMKResidGAM_MDPaper.Rdata")
+=======
+load("../projectdata/MKResidGAM_MDPaper.Rdata")
+>>>>>>> 5c57c98bd180740bc5b386c2b504375197213f26
 
 
 
@@ -114,11 +123,18 @@ Table6 <- data.frame(Station = Flow_m4$Station, AIC = Flow_m4$AIC,
                      Q_percent = ifelse(Flow_m4$p.value < 0.1,
                                  (exp(Flow_m4$Value)-1),NA),
                      AIC_5 = Flow_m5$AIC,
+<<<<<<< HEAD
                      `tau MK` = weeklyTable_Mod5_grid$tau_MK,
                      `p-value MK` = weeklyTable_Mod5_grid$p.value.MK,
                      `Hurst coefficient` = weeklyTable_Mod5_grid$Hurst.value,
                      `Hurst p-value` = weeklyTable_Mod5_grid$Hurst.p.value,
                      `p-value LTP MK` = weeklyTable_Mod5_grid$MK.LTP.p.value)
+=======
+                     `tau MK` = weeklyTable_Mod5$tau.MK,
+                     `p-value MK` = weeklyTable_Mod5$p.value.MK,
+                     `Hurst p-value` = weeklyTable_Mod5$Hurst.p.value,
+                     `p-value LTP MK` = weeklyTable_Mod5$MK.LTP.p.value)
+>>>>>>> 5c57c98bd180740bc5b386c2b504375197213f26
 
 # now save the table as a csv file
 write.csv(Table6, "../projectdata/Table6.csv", row.names=F)

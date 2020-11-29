@@ -558,7 +558,10 @@ hp <- hp + scale_colour_grey(start = 0, end = 0.6)
 print(hp)
 
 save(real_df, file="../projectdata/MKResidGAM_MDPaper.Rdata")
+<<<<<<< HEAD
 save(sig_set_a, file="../projectdata/MKResidGAM_bootstrap_MDPaper.Rdata")
+=======
+>>>>>>> 5c57c98bd180740bc5b386c2b504375197213f26
 
 pander(real_df, caption="Mann Kendall results for the GAMM residuals")
 rm(Store_FwRE2)
@@ -736,7 +739,10 @@ hp <- hp + theme(axis.text.x = element_text(angle=45,
 print(hp)
 
 save(real_df, file="../projectdata/GrMKResidGAM_MDPaper.Rdata")
+<<<<<<< HEAD
 save(sig_set_a, file="../projectdata/GrMKResidGAM_bootstrap_MDPaper.Rdata")
+=======
+>>>>>>> 5c57c98bd180740bc5b386c2b504375197213f26
 save(hp, file="../projectdata/Figure7ResidGAM_MDPaper.Rdata")
 #
 # # production quality tiff, this is Figure 7 in the manuscript
@@ -771,7 +777,10 @@ colnames(ResMod5_grid_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"),
 weeklyTable_Mod5_grid <- data.frame(Catchment = Stations[,1], 
                   `tau_MK` = ResMod5_grid_MKLTP[,1],
                   `p-value MK` = ResMod5_grid_MKLTP[,6],
+<<<<<<< HEAD
                   `Hurst value` = ResMod5_grid_MKLTP[,7],
+=======
+>>>>>>> 5c57c98bd180740bc5b386c2b504375197213f26
                   `Hurst p-value` = ResMod5_grid_MKLTP[,8],
                   `MK LTP p-value` = ResMod5_grid_MKLTP[,10])
 

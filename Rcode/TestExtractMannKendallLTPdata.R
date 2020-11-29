@@ -1,6 +1,10 @@
 # analyses Hamed MK results, weekly
 
+<<<<<<< HEAD
 setwd("c:/users/rver4657/owncloud/Virtual Experiments/ProjectData/HPCresults")
+=======
+setwd("E:/cloudstor/Virtual Experiments/ProjectData/HPCresults")
+>>>>>>> 5c57c98bd180740bc5b386c2b504375197213f26
 
 require(HKprocess)
 require(tidyverse)
