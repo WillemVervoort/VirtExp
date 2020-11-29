@@ -1,0 +1,74 @@
+---
+title: "Back transformation theory"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document:
+      fig_width: 7
+      fig_height: 6
+      fig_caption: true
+---
+```{r setup, warning=F, message=F}
+# root dir
+knitr::opts_knit$set(root.dir = 
+                       "D:/Cloudstor/Virtual Experiments/VirtExp")
+                       #"C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_chunk$set(echo = TRUE)
+# LOAD REQUIRED PACKAGES # #####
+library(pander)
+library(tidyr)
+library(zoo)
+library(mgcv)
+library(ggplot2)
+```
+This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository. 
+
+# Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted.
+
+# Back transformation
+This document is related to the *[3.GAMmodelTest.pdf](./3.GAMmodelTests.pdf)* document and is to explain the back transformation used in the `gamm()` and `gls()` regressions, which are essentially the following type of regression equation  
+$log(y) = \beta_1*trend$  
+How do we interpret $\beta_1$?  
+Assume a 1 unit change in trend in time, this results in:  
+$log(y_{t=1}) - log(y_{t=0}) = \beta_1$ or  
+$log(\frac{y_{t=1}}{y_{t=0}}) = \beta_1$  
+raising both sides to a power results in:  
+$\frac{y_{t=1}}{y_{t=0}} = exp(\beta_1)$  
+
+[According to this link](https://data.library.virginia.edu/interpreting-log-transformations-in-a-linear-model/), we need to subtract 1 (for log(y + 1) = 0, presumably) to get the ratio
+
+In other words, $exp(\beta_1) - 1$ is equal to the ratio of the y values, or can be interpreted as a fractional change in y. The reason for substracting one is that we are talking about a 1 unit increase in the trend results in an $exp(\beta_1)$ change in y, so to get to fractional change we need to subtract 1
+
+The addition of a simple scalar  to y (1 in this case) makes no difference on the trend interpretation. This simply means we are now looking at a change in y+1, which is essentially the same as the change in y as the addition is a scalar.
+
+
+```{r small_demo}
+load("data/ClimCh_project_MD.Rdata")
+
+test <- flow_rain_maxT_weekly[flow_rain_maxT_weekly$Station=="DOMB",]
+# add a vector of trend values
+test$trend <- 1:nrow(test)
+
+
+# plot distributions
+par(mfrow=c(2,2))
+hist(test$Flow, main="untransformed")
+hist(log10(test$Flow +1), main ="log10 trans + 1")
+hist(log1p(test$Flow), main = "log(flow+1)")
+
+# log10 seems best
+# modelling
+plot(log10(Flow + 1)~trend, data = test)
+mod1 <- lm(log10(Flow + 1)~trend, data = test)
+summary(mod1)
+plot(residuals(mod1))
+# interpret the slope
+slope <- exp(coef(mod1)[2])-1
+slope
+```
+
+This slope is the fractional change in the flow per week. So if we multiply by 100 we get the "average weekly % change" in the flow.
+This implies the same % change on an annual scale and can be straight away interpreted as the amplification
+
+This suggest a 0.005% decrease in flow

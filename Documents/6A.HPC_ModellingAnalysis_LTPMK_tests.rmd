@@ -1,0 +1,396 @@
+---
+title: "6A Mann Kendall tests of the weekly residuals of the rainfall-runoff models correcting for serial correlation"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document:
+      fig_width: 7
+      fig_height: 6
+      fig_caption: true
+bibliography: StreamflowTrends.bib
+---
+```{r setup, echo=F}
+# root dir
+#knitr::opts_knit$set(root.dir = "D:/cloudstor/Virtual Experiments/VirtExp")
+knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages, warning=F, message=F}
+# LOAD REQUIRED PACKAGES # #####
+library(pander)
+library(tidyverse)
+require(doParallel)
+```
+
+This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository.
+
+# Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), originally submitted to Journal of Hydrology, but since that time modified and rewritten and submitted to a different journal. 
+This is the sixth part of the series that analyses the results from the GR4J and SimHyd model fitting on the High Performance computer Artemis at the University of Sydney. The scripts related to the high performance computing and the HPC scripts are stored in the Rcode/HPC folder.
+
+In particular, this part runs the Long Time Period Mann Kendall [@Hamed2008] analysis on the weekly residuals of the rainfall-runoff models calibrated on the overall timeseries. The idea is that if the original timeseries is non-stationary and contains a trend then this trend will show up in the resdiduals. In the original submission we analysed this simply with a Mann-Kendall analysis. In this version we extend this to include @Hamed2008 approach that accounts for serial correlation. This analysis finally generates  *Figure 9*
+
+To recap, we have 4 different High Performance Computing results for each of the 13 catchments. In each of these the two models (GR4J and SimHyd) were fitted to 40 years of climate data (1970 - 2010). However, there are results for both station rainfall and gridded rainfall to make sure there is no difference between these. As we have seen in the non-parametric epsilon calculation, there is no major difference between the two rainfall data sets, and it is not necessarily clear, which one of these is a better data set.
+
+The model fitting is based on the shuffled complex evolution optimisation in Hydromad as described in more detail in the paper. Essentially the model was fitted 10 times using the `FitBySCE()` function in the [Hydromad](http://hydromad.catchment.org) package.   
+
+The HPC results are not stored on Github, as the files are too large, but are stored in the [Cloudstor data directory](https://cloudstor.aarnet.edu.au/plus/index.php/s/68aKtJH6sDwibTC).
+
+# The data  
+Here we analyse the residuals of the modelling that has been described in the [sixth document](https://github.com/WillemVervoort/VirtExp/blob/master/Documents/6.HPC_ModellingAnalysis.pdf). So there is data for two models (GR4J and SimHyd) and for both the gridded and the station data. The Manuscript concentrates on the results of the gridded data only as there is little difference between the two data sets.
+
+Originally we intended to analyse the daily data using the test, but running this analysis for the 41 years of daily data for 10 realisations by 13 stations and 2 models and 2 rainfall types required an inordinate amount of time on the HPC (more than 300 hours per station). We therefore decided to use the same time scale as the other data and summarise the results to weekly data for the analysis.
+
+# Mann Kendall LTP analysis on weekly data using [@Hamed2008]
+
+Basically the same analysis is repeated for each of the data sets, similar to part 2 in this series of documents. 
+
+```{r DataImport}
+# import the analysis from the HPC runs:
+flow_stns <- c("COTT", "RUTH", "CORA", "ELIZ", "COCH", "COEN", "SCOT", "HELL", "NIVE", "MURR", "SOUT", "YARR", "DOMB")
+
+#-----------------------
+# read in the GR4J st data from the HPC
+files <- dir(path="../ProjectData/HPCresults",pattern="GR4J_st")
+
+GR4J_st_Out <- foreach(i=1:length(files), .combine='rbind') %do%
+{
+  load(paste("../Projectdata/HPCresults/",files[i], sep=""))
+  k <- ifelse(i < 7,20,10)
+  names(Station_resid) <- c(rep("Mann_Kendall",k),
+                                 rep("Significance_of_H",k),
+                                 rep("Mann_Kendall_LTP",k))
+  MK_standard <- as_tibble(do.call(rbind,
+                          Station_resid[names(Station_resid)=="Mann_Kendall"]))
+  Hsignif <- as_tibble(do.call(rbind,
+                        Station_resid[names(Station_resid)=="Significance_of_H"]))
+  names(Hsignif)[2] <- "2_sided_pvalue_Hest"
+  MK_LTP <- as_tibble(do.call(rbind,
+                        Station_resid[names(Station_resid)=="Mann_Kendall_LTP"]))
+  names(MK_LTP)[2] <- "2_sided_pvalue_MKLTP"
+       
+  flow_MKLTP <- cbind(MK_standard, Hsignif, MK_LTP)
+       
+  if (i < 7) {
+    st_names <- rep(flow_stns[((i-1)*2+1):(i*2)],each=10)
+  } else {
+    st_names <- rep(flow_stns[(i-1)*2+1],10)  
+  }
+  flow_MKLTP <- flow_MKLTP %>%
+     mutate(Station = st_names,
+            Model = "GR4J",
+            Method="Station data")                       
+       
+  flow_MKLTP
+       
+}
+# -------- end GR4J station data -----------------
+
+#---------------------------
+# read in the GR4J gridded rainfall data from the HPC
+files <- dir(path="../Projectdata/HPCresults",pattern="GR4J_gr")
+
+GR4J_gr_Out <- foreach(i=1:length(files), .combine='rbind') %do%
+{
+  load(paste("../Projectdata/HPCresults/",files[i], sep=""))
+  k <- ifelse(i < 7,20,10)
+  names(Station_resid) <- c(rep("Mann_Kendall",k),
+                            rep("Significance_of_H",k),
+                            rep("Mann_Kendall_LTP",k))
+  MK_standard <- as_tibble(do.call(rbind,
+                                   Station_resid[names(Station_resid)=="Mann_Kendall"]))
+  Hsignif <- as_tibble(do.call(rbind,
+                               Station_resid[names(Station_resid)=="Significance_of_H"]))
+  names(Hsignif)[2] <- "2_sided_pvalue_Hest"
+  MK_LTP <- as_tibble(do.call(rbind,
+                              Station_resid[names(Station_resid)=="Mann_Kendall_LTP"]))
+  names(MK_LTP)[2] <- "2_sided_pvalue_MKLTP"
+  
+  flow_MKLTP <- cbind(MK_standard, Hsignif, MK_LTP)
+  
+  if (i < 7) {
+    st_names <- rep(flow_stns[((i-1)*2+1):(i*2)],each=10)
+  } else {
+    st_names <- rep(flow_stns[(i-1)*2+1],10)  
+  }
+  
+  
+ flow_MKLTP <- flow_MKLTP %>%
+     mutate(Station = st_names,
+            Model = "GR4J",
+            Method="Gridded data")                       
+ 
+  flow_MKLTP
+  
+}
+# -------- end GR4J data based on gridded rainfall -----------------
+
+#-----------------------
+# read in the Simhyd station based data from the HPC
+files <- dir(path="../Projectdata/HPCresults",pattern="SH_st")
+# sort the files in the right order
+files <- files[c(1,2,3,4,6,7,5)]
+
+
+SH_st_Out <- foreach(i=1:length(files), .combine='rbind') %do%
+{
+  load(paste("../Projectdata/HPCresults/",files[i], sep=""))
+  k <- ifelse(i < 7 ,20,10)
+  names(Station_resid) <- c(rep("Mann_Kendall",k),
+                                 rep("Significance_of_H",k),
+                                 rep("Mann_Kendall_LTP",k))
+  MK_standard <- as_tibble(do.call(rbind,
+                          Station_resid[names(Station_resid)=="Mann_Kendall"]))
+  Hsignif <- as_tibble(do.call(rbind,
+                        Station_resid[names(Station_resid)=="Significance_of_H"]))
+  names(Hsignif)[2] <- "2_sided_pvalue_Hest"
+  MK_LTP <- as_tibble(do.call(rbind,
+                        Station_resid[names(Station_resid)=="Mann_Kendall_LTP"]))
+  names(MK_LTP)[2] <- "2_sided_pvalue_MKLTP"
+       
+  flow_MKLTP <- cbind(MK_standard, Hsignif, MK_LTP)
+       
+  if (i < 7) {
+    st_names <- rep(flow_stns[((i-1)*2+1):(i*2)],each=10)
+  } else {
+    st_names <- rep(flow_stns[(i-1)*2+1],10)  
+  }
+                         
+       
+  flow_MKLTP <- flow_MKLTP %>%
+      mutate(Station = st_names,
+            Model = "SimHyd",
+            Method="Station data")                       
+
+    flow_MKLTP
+       
+}
+# -------- end SimHyd station data -----------------
+
+#---------------------------
+# read in the SimHyd gridded rainfall data from the HPC
+files <- dir(path="../Projectdata/HPCresults/",pattern="SH_gr")
+# sort in right order
+files <- files[c(1,2,3,4,6,7,5)]
+
+SH_gr_Out <- foreach(i=1:length(files), .combine='rbind') %do%
+{
+  load(paste("../Projectdata/HPCresults/",files[i], sep=""))
+  k <- ifelse((i < 7) ,20,10)
+  names(Station_resid) <- c(rep("Mann_Kendall",k),
+                            rep("Significance_of_H",k),
+                            rep("Mann_Kendall_LTP",k))
+  MK_standard <- as_tibble(do.call(rbind,
+                                   Station_resid[names(Station_resid)=="Mann_Kendall"]))
+  Hsignif <- as_tibble(do.call(rbind,
+                               Station_resid[names(Station_resid)=="Significance_of_H"]))
+  names(Hsignif)[2] <- "2_sided_pvalue_Hest"
+  MK_LTP <- as_tibble(do.call(rbind,
+                              Station_resid[names(Station_resid)=="Mann_Kendall_LTP"]))
+  names(MK_LTP)[2] <- "2_sided_pvalue_MKLTP"
+  
+  flow_MKLTP <- cbind(MK_standard, Hsignif, MK_LTP)
+  
+  if (i < 7) {
+    st_names <- rep(flow_stns[((i-1)*2+1):(i*2)],each=10)
+  } else {
+    st_names <- rep(flow_stns[(i-1)*2+1],10)  
+  }
+  
+  
+  flow_MKLTP <- flow_MKLTP %>%
+     mutate(Station = st_names,
+            Model = "SimHyd",
+            Method="Gridded data")                       
+
+    flow_MKLTP
+  
+}
+  # -------- end SimHyd data based on gridded rainfall -----------------
+
+
+```
+
+
+## Summary of the data
+This section brings together the data from all the weekly Mann Kendall analyses and puts this into a table. Some of these results are captured in **Figure 9** in the manuscript.
+
+The first thing is a simple representation in Tables
+
+```{r weeklyTables}
+# GR4J Station data
+TableGR4J_st_out <- GR4J_st_Out %>%
+         group_by(Station) %>%
+         summarise(`MK tau value` = mean(Kendall_s_tau_statistic),
+                   `Sen slope` = mean(Sen_slope),
+                   `p value MK` = mean(`2_sided_pvalue`),
+                   `Hurst coef` = mean(Hest),
+                   `p-value Hurst` = mean(`2_sided_pvalue_Hest`),
+                   p_MKLTP = mean(`2_sided_pvalue_MKLTP`))
+
+
+# GR4J gridded data
+TableGR4J_gr_out <- GR4J_st_Out %>%
+         group_by(Station) %>%
+         summarise(`MK tau value` = mean(Kendall_s_tau_statistic),
+                   `Sen slope` = mean(Sen_slope),
+                   `p value MK` = mean(`2_sided_pvalue`),
+                   `Hurst coef` = mean(Hest),
+                   `p-value Hurst` = mean(`2_sided_pvalue_Hest`),
+                   `p-value MKLTP` = mean(`2_sided_pvalue_MKLTP`))
+
+write_csv(TableGR4J_gr_out,
+          "../projectdata/HPC_LTPMK_GR4J_gr_Table.csv")
+
+# SimHyd Station data
+TableSH_st_out <- SH_st_Out %>%
+         group_by(Station) %>%
+         summarise(`MK tau value` = mean(Kendall_s_tau_statistic),
+                   `Sen slope` = mean(Sen_slope),
+                   `p value MK` = mean(`2_sided_pvalue`),
+                   `Hurst coef` = mean(Hest),
+                   `p-value Hurst` = mean(`2_sided_pvalue_Hest`),
+                   `p-value MKLTP` = mean(`2_sided_pvalue_MKLTP`))
+
+# SimHyd gridded data
+TableSH_gr_out <- SH_gr_Out %>%
+         group_by(Station) %>%
+         summarise(`MK tau value` = mean(Kendall_s_tau_statistic),
+                   `Sen slope` = mean(Sen_slope),
+                   `p value MK` = mean(`2_sided_pvalue`),
+                   `Hurst coef` = mean(Hest),
+                   `p-value Hurst` = mean(`2_sided_pvalue_Hest`),
+                   `p-value MKLTP` = mean(`2_sided_pvalue_MKLTP`))
+
+write_csv(TableSH_gr_out,
+          "../projectdata/HPC_LTPMK_SH_gr_Table.csv")
+
+pander(TableGR4J_st_out,
+       caption="Mann-Kendall LTP test (Hamed, 2008)
+      results for residuals of rainfall-runoff model GR4J for station rainfall data
+       p-values are considered significant at the 5% level.")
+
+pander(TableGR4J_gr_out,
+       caption="Mann-Kendall LTP test (Hamed, 2008)
+      results for residuals of rainfall-runoff model GR4J for gridded rainfall data
+       p-values are considered significant at the 5% level.")
+
+pander(TableSH_st_out,
+       caption="Mann-Kendall LTP test (Hamed, 2008)
+      results for residuals of rainfall-runoff model SimHyd for station rainfall data
+       p-values are considered significant at the 5% level.")
+
+pander(TableSH_gr_out,
+       caption="Mann-Kendall LTP test (Hamed, 2008)
+      results for residuals of rainfall-runoff model SimHyd for gridded rainfall data
+       p-values are considered significant at the 5% level.")
+```
+
+# Discussion of the weekly results
+
+Basically none of the slopes are significant on the average if you calibrate the 41 year series and using the LTPMK. Some of the individual replications show significance. How can this be explained? Relative to the actual data? However, the standard MK analysis shows slopes, similar to the GAMM and standard MK analysis. This essentially shows that there likely is a "local" slope, but currently the overall variation in the data means we cannot yet affirm a long term trend in the data.
+
+### Figure 9
+
+Stack the dataset
+
+```{r}
+plot.df <- rbind(GR4J_st_Out,GR4J_gr_Out,SH_st_Out, SH_gr_Out)
+
+sign_sum <- plot.df %>%
+  group_by(Model, Method, Station) %>%
+  summarise(avg_p_value_MKLTP = mean(`2_sided_pvalue_MKLTP`),
+            avg_p_value_MK = mean(`2_sided_pvalue`))
+
+plot.df1 <- left_join(plot.df,sign_sum,
+                      by=c("Model","Method","Station"))
+
+plot.df1 <- as_tibble(plot.df1) %>%
+  mutate(significance_LTP = ifelse(avg_p_value_MKLTP < 0.05,
+                               "yes","no"),
+         significance_MK = ifelse(avg_p_value_MK < 0.05,
+                               "yes","no"))
+
+
+```
+
+
+
+
+```{r Figure9, fig.width=8, fig.height = 11, fig.cap="Analysis of residual trends (1970 - 2010) between modelled and observed data for the different rainfall runoff models. Boxplots represent the range of results from the 10 shuffled complex evolution calibrations. Average signficance of the slopes based on the standard MK analysis is indicated"}
+# Now plot the actual trends
+p <- ggplot(plot.df1, aes(x = Station, y = Sen_slope*52)) +
+  geom_boxplot(coef=0.5,aes(colour =significance_MK)) +  facet_wrap(~ Model + Method,ncol=1,scales="free") 
+p <- p + stat_summary(fun.y=mean, geom="point", shape=16,
+                      lwd=2, alpha=0.5)
+
+p <- p + ggtitle("Residual Sen's slope trends: predicted - observed 1970 - 2010") +
+  theme(plot.title = element_text(lineheight=.8, face="bold"))+
+  xlab("Station") +
+  theme(axis.title.x = element_text(face="bold",  size=16),
+        axis.text.x  = element_text(size=12)) +
+  ylab("Trend estimate (mm/year) or Mann Kendall tau") +
+  theme(axis.title.y = element_text(face="bold",  size=16),
+        axis.text.y  = element_text(size=12)) +
+  theme(legend.text = element_text(size = 12))+
+  theme(legend.title = element_text(size=14, face="bold")) +
+  theme(strip.text.x = element_text(size=10))
+
+# # Highlight point outside graph for SimHyd
+# ann_text <- data.frame(Station = "CORA",trend = 0.2,lab = "CORA: 1 data point trend > 2",
+#                        Model = factor("SimHyd",levels = c("GR4J","SimHyd", "GR4JGrid","SimHydGrid")),
+#                        Method = factor("Linear Trend",levels = c("Linear Trend","Mann Kendall")))
+# p <- p + geom_text(data = ann_text,label = "CORA: 1 data point trend > 2")
+
+
+#save(p,file=paste(Today,"_ModelResidualTrendPlot.RData"))
+p
+```
+
+This figure suggests that the overall slopes are small, and those close to 0 are not significant, which is the same as the earlier table. 
+
+#### Figure 9 publication quality
+For this only plot the results from the non-gridded rainfall as the performance from the gridded rainfall modelling is poor.
+
+```{r figure9_pub}
+plot.df2 <- plot.df1[grep("Gridded data",plot.df1$Method) ,]
+
+
+p1 <- ggplot(plot.df2, aes(x = Station, y = Sen_slope*52)) +
+  scale_fill_manual(name="significance",values=c("yes" ="red", "no"="blue"))  +
+  scale_colour_manual(name="significance",
+                      values=c("yes" ="red", "no"="blue"))  +
+  geom_boxplot(coef=0.5, aes(fill = significance_MK, 
+                             colour = significance_MK)) +  
+  facet_wrap(~ Model,ncol=1,scales="free") 
+
+p1 <- p1 + stat_summary(fun.y=mean, geom="point", shape=16,lwd=2)
+
+p1 <- p1 +   xlab("Station") +
+  theme(axis.title.x = element_text(face="bold",  size=16),
+        axis.text.x  = element_text(size=12)) +
+  ylab("Sen's slope (mm/year)") +
+  theme(axis.title.y = element_text(face="bold",  size=16),
+        axis.text.y  = element_text(size=12)) +
+  theme(legend.text = element_text(size = 12))+
+  theme(legend.title = element_text(size=16, face="bold")) +
+  theme(strip.text.x = element_text(size=14, face="bold"))
+
+# # Highlight point outside graph for SimHyd
+# ann_text <- data.frame(Station = "CORA",trend = 0.2,lab = "CORA: 1 data point trend > 2",
+#                        Model = factor("SimHyd",levels = c("GR4J","SimHyd")),
+#                        Method = factor("Linear Trend",levels = c("Linear Trend","Mann Kendall")))
+# p1 <- p1 + geom_text(data = ann_text,label = "CORA: 1 data point trend > 2")
+
+
+tiff("../Manuscript/Figure8_ModelResidualTrendPlot.tif",
+  width=16*480,height=12*480,
+     res=600, compression="lzw")
+print(p1)
+dev.off()
+
+
+# Write away the data
+save(plot.df,file="../ProjectData/Figure8Results.Rdata")
+```

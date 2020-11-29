@@ -1,0 +1,784 @@
+---
+title: "GAM analysis of the weekly data"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document: 
+      fig_caption: yes
+      fig_height: 6
+      fig_width: 7
+bibliography: StreamflowTrends.bib
+---
+```{r setup, warning=F, message=F}
+# root dir
+knitr::opts_knit$set(root.dir = 
+                       "d:/cloudstor/Virtual Experiments/VirtExp")
+#knitr::opts_knit$set(root.dir = 
+#                       "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_chunk$set(echo = TRUE)
+# LOAD REQUIRED PACKAGES # #####
+library(pander)
+library(tidyverse)
+library(xts)
+library(zoo)
+library(mgcv)
+library(Kendall)
+library(ggplot2)
+library(doParallel)
+library(foreach)
+
+storedir <- "d:/cloudstor/virtual experiments"
+#storedir <- "C:/Users/rver4657/ownCloud/Virtual Experiments"
+
+```
+
+This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository
+
+# Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.).  
+This part of the series covers the analysis of the streamflow data using Generalised Additive models (GAM) testing for a trend in the data, or testing for a trend in the residuals. In particular, this extends the Mann Kendall analysis, as the Mann Kendall tau only indicates a strength, significance and direction of the trend, but does not quantify the magnitude of the trend.  
+The different models are outlined in **Table 2** in the main manuscript. The methods describe in detail how the GAM are developed with reference to the underlying theory. In the analysis, the trend models are fitted to flow and rain data > 0, as this means the log transformation is better interpretable. In the end, the analysis is interested in changes in the positive flow values. A binary model could be fit to check if there is any change in the number of weeks or days with rainfall.  
+This document follows **Table 2** in the series of models, so the headings (and model numbers) relate to this table. 
+
+# The data  
+Using the datasets that were developed earlier, we can load in the daily data for streamflow, rainfall and temperature.
+
+```{r loadData}
+load("data/ClimCh_project_MD.Rdata")
+```
+
+# The models (from Table 2 in the manuscript)
+Table 2 in the manuscript (reproduced below) outlines the different models that were analysed using the statistical general additive models.
+```{r Table2}
+table2 <- read_delim("documents/Table2Models.csv", delim=";")
+pander(table2,caption = "Model structures used in the Generalised additive modelling analysis")
+```
+
+# Model 1 Only flow and trend
+The first 2 models are actually not generalised additive mixed models (GAM) as the models only analyse a linear trend. To match the GAM analysis, we used generalised least squares (`gls()`) in R. This still allows correlated errors to be analysed
+
+```{r model1}
+# run the gls model on flowtrend only
+#for (i in seq_along(Stations[,1])) {
+cl <- makeCluster(6) # create a cluster with 6 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store2 <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
+# for (i in seq_along(Stations[,1])) {
+#   i <- 1
+  gamm.data <- subset(flow_rain_maxT_weekly,
+                      flow_rain_maxT_weekly$Station == Stations[i,1])
+  gamm.data$Flow[gamm.data$Flow==0] <- NA
+  gamm.data$trend <- 1:nrow(gamm.data)
+  gam_TrendOnly <- gls(log(Flow)~trend, correlation= corAR1(),
+       data=na.omit(gamm.data))
+  out <- list(model = gam_TrendOnly,
+              results = data.frame(Station=Stations[i,1],
+              t(summary(gam_TrendOnly)$tTable[2,c(1,4)]),
+                   AIC=summary(gam_TrendOnly)$AIC))
+  out
+}
+stopCluster(cl)
+
+# store results
+save(Store2,file=paste(storedir,
+                "projectdata/Store2_TrendOnlyAnalysis.RData",
+                sep="/"))
+output <- do.call(rbind, lapply(1:length(Store2), function(i) rbind(Store2[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in flow only")
+```
+
+\newpage
+
+```{r figmodel1, fig.cap="Residuals of linear mixed model analysis for trend in flow only"}
+
+par(mfrow=c(5,3),mar=c(2,2,2,2))
+for (i in seq_along(Stations[,1])) {
+  res <- residuals(Store2[[i]]$model)  
+  plot(res, main=Stations[i,1], cex.main=0.7,
+       ylab="normalised residuals",xlab="")
+  n <- length(res)
+  abline(lsfit(1:n, res), col="red")
+}
+rm(Store2)
+```
+
+
+# Model 2 trend in rain  
+## Rainfall Station measured data  
+Similar to the flow data, this analysis uses `gls()` to run the linear mixed model to test for a trend in the data and compare to the Mann-Kendall results
+
+```{r model2a}
+# create an empty list
+# and an empty dataframe to store results
+# run the gls model on flowtrend only
+cl <- makeCluster(6) # create a cluster with 6 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_Rain <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
+  gamm.data <- subset(flow_rain_maxT_weekly,
+                      flow_rain_maxT_weekly$Station == Stations[i,1])
+  gamm.data$Rain[gamm.data$Rain==0] <- NA
+  gamm.data$trend <- 1:nrow(gamm.data)
+  gam_TrendR <- gls(log(Rain)~trend, correlation= corAR1(),
+       data=na.omit(gamm.data))
+  out <- list(model = gam_TrendR,
+              results = data.frame(Station=Stations[i,1],
+                     t(summary(gam_TrendR)$tTable[2,c(1,4)]),
+                                   AIC=summary(gam_TrendR)$AIC))
+  out
+}
+stopCluster(cl)
+
+
+# store results
+save(Store_Rain,file=paste(storedir,
+                  "projectdata/StoreRain_TrendAnalysis.RData",
+                    sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_Rain), 
+                     function(i) rbind(Store_Rain[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in Station Rainfall")
+```
+
+\newpage
+
+```{r figmodel2a, fig.cap="Residuals of linear mixed model analysis for trend in station rainfall data"}
+
+par(mfrow=c(5,3),mar=c(2,2,2,2))
+for (i in seq_along(Stations[,1])) {
+  res <- residuals(Store_Rain[[i]]$model)  
+  plot(res, main=Stations[i,1], cex.main=0.5,
+       ylab="normalised residuals",xlab="")
+  n <- length(res)
+  abline(lsfit(1:n, res), col="red")
+}
+rm(Store_Rain)
+```
+
+## Rainfall gridded data analysis  
+Repeat the rainfall analysis for the gridded data to compare station data to gridded data.  
+
+```{r model2b}
+# create an empty list
+# and an empty dataframe to store results
+# run the gls model on gridraintrend only
+cl <- makeCluster(6) # create a cluster with 6 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_GridRain <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
+  gamm.data <- subset(flow_rain_maxT_weekly,
+                      flow_rain_maxT_weekly$Station == Stations[i,1])
+  gamm.data$gridRain[gamm.data$gridRain==0] <- NA
+  gamm.data$trend <- 1:nrow(gamm.data)
+  gam_TrendGridR <- gls(log(gridRain)~trend, correlation= corAR1(),
+       data=na.omit(gamm.data))
+  out <- list(model = gam_TrendGridR,
+              results = data.frame(Station=Stations[i,1],
+                         t(summary(gam_TrendGridR)$tTable[2,c(1,4)]),
+                                   AIC=summary(gam_TrendGridR)$AIC))
+  out
+    }
+stopCluster(cl)
+
+# store results
+save(Store_GridRain,
+     file=paste(storedir,
+                "projectdata/StoreGridRain_TrendAnalysis.RData",
+                sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_GridRain), 
+              function(i) rbind(Store_GridRain[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in Gridded Rainfall")
+
+```
+
+\newpage
+
+```{r figmodel2b, fig.cap="Residuals of linear mixed model analysis for trend in gridded rainfall data"}
+par(mfrow=c(5,3),mar=c(2,2,2,2))
+for (i in seq_along(Stations[,1])) {
+  res <- residuals(Store_GridRain[[i]]$model)  
+  plot(res, main=Stations[i,1], cex.main=0.5,
+       ylab="normalised residuals",xlab="")
+  n <- length(res)
+  abline(lsfit(1:n, res), col="red")
+}
+rm(Store_GridRain)
+```
+
+# Model 3 GAMM with rainfall  
+This model analyses flow as a function of rainfall only. This is therefore an analysis of the rainfall runoff coefficient, taking into account a possible time trend in the data. If the trend in this analysis is significant, then this is a measure of how the rainfall runoff coefficient has changed over time.  
+Again the analysis is run twice, once with station rainfall data (model 3a) and once with gridded rainfall data (model 3b).
+
+For the GAMM models, the flexibility of the smooths is constrained to be k = 5 [@Wood2006]. This should be flexible enough for general purposes and not lead to overfitting. However, we needed to use k = 5 rather than a stiffer k = 3 to allow convergence for some of the models.
+
+## Station rainfall data  
+
+```{r model3a}
+# Gamm model with flow and rain
+cl <- makeCluster(6) # create a cluster with 6 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwR <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
+  gamm.data <- subset(flow_rain_maxT_weekly,
+                      flow_rain_maxT_weekly$Station == Stations[i,1])
+  #gamm.data$Flow[gamm.data$Flow==0] <- NA
+  gamm.data$trend <- 1:nrow(gamm.data)
+  gam_TrendFlow_withR <- gamm(log(Flow+1)~s(Rain, k=5) + trend, 
+                               correlation= corCAR1(), data=na.omit(gamm.data))
+  out <- list(model = gam_TrendFlow_withR,
+              results = data.frame(Station=Stations[i,1],
+                            t(summary(gam_TrendFlow_withR$lme)$tTable[2,c(1,5)]),
+                                   AIC=summary(gam_TrendFlow_withR$lme)$AIC))
+  out
+   }
+stopCluster(cl)
+
+# store results
+save(Store_FwR,
+     file=paste(storedir,
+              "projectdata/StoreFwR_TrendAnalysis.RData",
+              sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_FwR), 
+                                function(i) rbind(Store_FwR[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in flow data taking into account Rainfall")
+
+```
+
+\newpage
+
+```{r figmodel3a, fig.cap="Residuals of GAMM analysis for trend in flow data taking into consideration station rainfall data"}
+par(mfrow=c(5,3), mar=c(2,2,2,2))
+for (i in seq_along(Stations[,1])) {
+  res <- residuals(Store_FwR[[i]]$model$lme)  
+  plot(res, main=Stations[i,1], cex.main=0.5,
+       ylab="normalised residuals",xlab="")
+  n <- length(res)
+  abline(lsfit(1:n, res), col="red")
+}
+rm(Store_FwR)
+```
+
+
+## Gridded rainfall data  
+
+```{r model3b}
+#gam model with flow and gridded rainfall
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwGR <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
+  gamm.data <- subset(flow_rain_maxT_weekly,
+                      flow_rain_maxT_weekly$Station == Stations[i,1])
+  #gamm.data$Flow[gamm.data$Flow==0] <- NA
+  gamm.data$trend <- 1:nrow(gamm.data)
+  gam_TrendFlow_withGR <- gamm(log(Flow+1)~s(gridRain, k=3) + trend, 
+                                  correlation= corCAR1(),
+                               data=na.omit(gamm.data))
+  out <- list(model = gam_TrendFlow_withGR,
+              results = data.frame(Station=Stations[i,1],
+                            t(summary(gam_TrendFlow_withGR$lme)$tTable[2,c(1,5)]),
+                                   AIC=summary(gam_TrendFlow_withGR$lme)$AIC))
+  out
+   }
+stopCluster(cl)
+
+# store results
+save(Store_FwGR,
+     file=paste(storedir,
+                "projectdata/StoreFwGR_TrendAnalysis.RData",
+                sep = "/"))
+output <- do.call(rbind, lapply(1:length(Store_FwGR), 
+                                function(i) rbind(Store_FwGR[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in flow data taking into account Gridded Rainfall")
+
+```
+
+\newpage
+
+```{r figmodel3b, fig.cap="Residuals of GAMM analysis for trend in flow data taking into consideration gridded rainfall data"}
+par(mfrow=c(5,3), mar=c(2,2,2,2))
+for (i in seq_along(Stations[,1])) {
+  res <- residuals(Store_FwGR[[i]]$model$lme)  
+  plot(res, main=Stations[i,1], cex.main=0.5,
+       ylab="normalised residuals",xlab="")
+  n <- length(res)
+  abline(lsfit(1:n, res), col="red")
+}
+rm(Store_FwGR)
+```
+
+
+# Model 4. GAMM with rain & s(rain,MaxT) and trend
+This model analyses flow as a function of rainfall and the interaction between rainfall and maximum temperature, which is conceptualised as the actual evapotranspiration. This is therefore an analysis of the rainfall runoff coefficient, taking into account the changes in evapotranspiration and a possible time trend in the data. If the trend in this analysis is significant, then this is a measure of how the rainfall runoff coefficient has changed over time.  
+Again the analysis is run twice, once with station rainfall data (model 3a) and once with gridded rainfall data (model 3b).
+
+## Station rainfall data  
+
+```{r model4a}
+# run the gamm model on rain, maxT and flow
+cl <- makeCluster(4) # create a cluster with 4 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwRE <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
+  gamm.data <- subset(flow_rain_maxT_weekly,
+                      flow_rain_maxT_weekly$Station == Stations[i,1])  
+  #gamm.data$Flow[gamm.data$Flow==0] <- NA
+  gamm.data$trend <- 1:nrow(gamm.data)
+  gam_TrendFlow_withRandE <- gamm(log(Flow+1)~s(Rain, k=3) + s(Rain, MaxT, k=3) + 
+                                       trend, correlation= corCAR1(),
+                                       data=na.omit(gamm.data))#,
+                                  #control=list(niterEM=0))
+  out <- list(model = gam_TrendFlow_withRandE,
+        results = data.frame(Station=Stations[i,1],
+                      t(summary(gam_TrendFlow_withRandE$lme)$tTable[2,c(1,5)]),
+                            AIC=summary(gam_TrendFlow_withRandE$lme)$AIC))
+  out
+ }
+stopCluster(cl)
+
+# store results
+save(Store_FwRE,
+     file=paste(storedir,
+                "projectdata/StoreFwRE_TrendAnalysis.RData",
+                sep = "/"))
+output <- do.call(rbind, lapply(1:length(Store_FwRE), 
+                                function(i) rbind(Store_FwRE[[i]][[2]])))
+pander(output, caption="Mixed model results for the analysis of trend in flow data taking into account Rainfall and Evapotranspiration")
+
+```
+
+\newpage
+
+```{r figmodel4a, fig.cap="Residuals of GAMM analysis for trend in flow data removing station rainfall and evapotranspiration effects"}
+par(mfrow=c(5,3), mar=c(2,2,2,2))
+for (i in seq_along(Stations[,1])) {
+  res <- residuals(Store_FwRE[[i]]$model$lme)  
+  plot(res, main=Stations[i,1], cex.main=0.5,
+       ylab="normalised residuals",xlab="")
+  n <- length(res)
+  abline(lsfit(1:n, res), col="red")
+}
+rm(Store_FwRE)
+```
+
+
+## Gridded rainfall data
+
+The gridded rainfall data for some reason is slightly more complex and creates minor problems with fitting using GAMM. The difficulty is in setting k, which determines the flexibility of the smooths. The default value is k = -1 which allows the optimisation to set the smooths, but for R > 3.4.0 and updated package mgcv (20/05/2017) this fails. Setting k = 3 (which should be more than flexible enough) allows the models to run. This should not influence the results.
+
+```{r model4b}
+# run the gamm model on gridded rain, maxT and flow
+cl <- makeCluster(6) # create a cluster with 6 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwGRE <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
+#  out <- list()                 
+#for (i in 1:length(Stations[,1])) {                  
+  gamm.data <- subset(flow_rain_maxT_weekly,
+                      flow_rain_maxT_weekly$Station == Stations[i,1])
+  #gamm.data$Flow[gamm.data$Flow==0] <- NA
+  gamm.data$trend <- 1:nrow(gamm.data)
+  # need to set k is 10 (large enough), as it cannot be default k=-1 
+  # due to missing data. This is for R > 3.4.0
+  # unclear, runs with k= -1 in R 3.3.0
+  gam_TrendFlow_withGRE <- gamm(log(Flow+1) ~ 
+                                s(gridRain,k=3) +
+                                s(gridRain,MaxT, k=3) + 
+                                trend,
+                                correlation= corCAR1(),
+                                data=na.omit(gamm.data))#,
+                                #control=list(niterEM=5))
+  out <- list(model = gam_TrendFlow_withGRE,
+        results = data.frame(Station=Stations[i,1],
+       t(summary(gam_TrendFlow_withGRE$lme)$tTable[2,c(1,5)]),
+       AIC=summary(gam_TrendFlow_withGRE$lme)$AIC))
+  out
+}
+stopCluster(cl)
+
+# store results
+save(Store_FwGRE,
+     file=paste(storedir,
+                "projectdata/StoreFwGRE_TrendAnalysis.RData",
+                sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_FwGRE), 
+                                function(i) rbind(Store_FwGRE[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in flow data taking into account Gridded Rainfall and Evapotranspiration")
+
+```
+
+\newpage
+
+```{r figmodel4b, fig.cap="Residuals of GAMM analysis for trend in flow data removing gridded rainfall and evapotranspiration effects"}
+par(mfrow=c(5,3),mar=c(2,2,2,2))
+for (i in seq_along(Stations[,1])) {
+  res <- residuals(Store_FwGRE[[i]]$model$lme)  
+  plot(res, main=Stations[i,1], cex.main=0.5,
+       ylab="normalised residuals",xlab="")
+  n <- length(res)
+  abline(lsfit(1:n, res), col="red")
+}
+rm(Store_FwGRE)
+```
+
+
+# Model 5, same as model 4, but no trend and Mann Kendall on the residuals
+This last model is to check the trend with GAMM analysis with the analysis using Mann-Kendall. So rather than incorporating a trend in the model, we analyse the residuals using Mann-Kendall for a trend. In this case we drop the plotting of the residuals. Tne bootstrap Mann Kendall is retained for completeness
+
+## Station rainfall data  
+
+```{r model5a}
+# run the gamm model on rain, maxT and flow
+cl <- makeCluster(6) # create a cluster with 6 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwRE2 <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {
+  gamm.data <- subset(flow_rain_maxT_weekly,
+                      flow_rain_maxT_weekly$Station == Stations[i,1])
+  #gamm.data$Flow[gamm.data$Flow==0] <- NA
+  gam_Flow_withRandE <- gamm(log(Flow+1)~s(Rain, k=3) + s(Rain, MaxT, k=3) , 
+                                  correlation= corCAR1(),
+                             data=na.omit(gamm.data))#,
+                                  #control=list(niterEM=5))
+  out <- list(model = gam_Flow_withRandE,
+        results = data.frame(Station=Stations[i,1],
+                            AIC=summary(gam_Flow_withRandE$lme)$AIC))
+  out
+}
+
+stopCluster(cl)
+
+# store results
+save(Store_FwRE2,
+     file=paste(storedir,
+                "projectdata/StoreFwRE2_Analysis.RData",
+                sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_FwRE2), 
+                                function(i) rbind(Store_FwRE2[[i]][[2]])))
+pander(output, caption="Mixed model results for the analysis of flow data taking into account Rainfall and Evapotranspiration")
+```
+
+Now do the Mann-Kendall analysis on the residuals
+```{r model5aMK, fig.cap="Mann Kendall analysis of the residuals of the streamflow after GAM model with rainfall and a Evapotranspiration"}
+# do mann kendall on the residuals
+resid_list <- vector("list", length=length(Stations[,1]))
+for (i in seq_along(Stations[,1])) {
+  gamm.data <- subset(flow_rain_maxT_weekly,
+                      flow_rain_maxT_weekly$Station == Stations[i,1])
+  #gamm.data$Flow[gamm.data$Flow==0] <- NA
+
+  resid_list[[i]] <- zoo(residuals(Store_FwRE2[[i]]$model$lme,
+                 type="normalized"),
+                 order.by=as.Date(na.omit(gamm.data)$Date))
+}
+resid_df <- do.call(merge.zoo,resid_list)
+names(resid_df) <- Stations[,1]
+
+# write this out to run MK_LTP on HPC
+save(resid_df,file="data/GAMMmodel5Resid.rdata")
+# Bootstrap
+set.seed(10)
+# now run a loop over the number of years (create 41 different sets)
+# do Mann Kendall test on each resonstituted series
+# ---------------------------
+#  -------------------------
+resid_temp <- as.data.frame(resid_df)
+resid_temp$years <- format(time(resid_df),"%Y")
+split_resid <- split(resid_temp[,1:13],resid_temp$years)
+
+
+cl <- makeCluster(6) # create a cluster with 6 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+MK_list <- foreach(i = 1:500,
+                 .packages=c("Kendall", "xts")) %dopar% {
+  # reorganise the list elements
+  series <- sample(1:nyears(resid_df),nyears(resid_df))
+  for (j in 1:length(series)) {
+    if (j==1) {
+      new_df <- as.data.frame(split_resid[[series[j]]])
+    } else {
+      new_df <- rbind(new_df,as.data.frame(split_resid[[series[j]]]))
+    }
+  }
+  # run mann kendall on the columns and store the results
+  mk_r <- apply(new_df,2,MannKendall)
+
+  out <- do.call(cbind,mk_r)
+  out
+ }
+stopCluster(cl)
+
+
+MK_df <- do.call(rbind,MK_list)
+
+pvalues <- subset(MK_df, rownames(MK_df)=="sl")
+tau <- subset(MK_df, rownames(MK_df)=="tau")
+
+sig_set <- list()
+
+for (i in 1:ncol(pvalues)) {
+  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
+                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
+  sig_set[[i]] <- set[set$pvalue < 0.5,]
+}
+
+sig_set_a <- do.call(rbind,sig_set)
+sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
+
+
+MK_resid <- do.call(rbind,lapply(resid_list,MannKendall))
+
+
+real_df <- data.frame(pvalue = as.numeric(MK_resid[,2]),
+                      tau = as.numeric(MK_resid[,1]),
+                      catch=Stations[,1],
+                      type=rep("real",nrow(MK_resid)))
+# A histogram of taus
+
+hp <- ggplot(sig_set_a, aes(x=tau)) + geom_histogram(binwidth=0.03,colour="white")
+# Histogram of significant tau's, divided by catch
+# With panels that have the same scaling, but different range
+# (and therefore different physical sizes)
+hp <- hp + facet_wrap(~ catch,ncol=5)
+# add a red point for the real slope from the data
+p_value <- ifelse(real_df$pvalue<0.05,"< 0.05",">= 0.05")
+hp <- hp + geom_point(data=real_df,aes(x=tau, y=0,colour=p_value),
+                shape=16,size=5) +
+  facet_wrap(~ catch,ncol=5)#+ ggtitle("Residuals Streamflow after GAM") #+
+hp <- hp + scale_colour_grey(start = 0, end = 0.6)
+print(hp)
+
+save(real_df, file="../projectdata/MKResidGAM_MDPaper.Rdata")
+save(sig_set_a, file="../projectdata/MKResidGAM_bootstrap_MDPaper.Rdata")
+
+pander(real_df, caption="Mann Kendall results for the GAMM residuals")
+rm(Store_FwRE2)
+```
+
+### Read in the MKLTP results on the GAM residuals for the station data 
+
+The Mann-Kendall analysis was moved to the HPC in January 2019 to be able to use the MKLTP analysis. Here the results of that analysis is read into the document. The script for the MKLTP analysis is called: "ResidualsMannkendallLTP.R" and this is in the VirtExp/Rcode/HPC folder on github.
+The bootstrap is retained for completeness
+
+```{r}
+load(paste(storedir,
+                "projectdata/HPCresults/Store_Res_Mod5.Rdata", sep="/"))
+
+MK_standard <- lapply(Store_resid, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_resid, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_resid, "[[","Mann_Kendall_LTP")
+
+ResMod5_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(ResMod5_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+
+weeklyTable_Mod5 <- data.frame(Catchment = Stations[,1], 
+                  `tau MK` = ResMod5_MKLTP[,1],
+                  `p-value MK` = ResMod5_MKLTP[,6],
+                  `Hurst p-value` = ResMod5_MKLTP[,8],
+                  `MK LTP p-value` = ResMod5_MKLTP[,10])
+save(weeklyTable_Mod5, file="../projectdata/MKResidGAM_MDPaper.Rdata")
+pander(weeklyTable_Mod5,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on the residuals of model 5 (Station data).
+       p-values are considered significant at the 5% level.")
+```
+
+
+## Gridded rainfall data   
+Do the same for the gridded rainfall data
+See the comments with model 4b with regard to setting the parameter k. Kept this consistent between model 4b and 5b, had to bump up to 5 to allow convergence.
+
+```{r model5b, fig.cap="Residuals of GAMM analysis of flow data removing gridded rainfall and evapotranspiration effects"}
+# run the gamm model on rain, maxT and flow
+cl <- makeCluster(6) # create a cluster with 6 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+Store_FwGRE2 <- foreach(i = 1:length(Stations[,1]),
+                 .packages="mgcv") %dopar% {  
+  gamm.data <- subset(flow_rain_maxT_weekly,
+                      flow_rain_maxT_weekly$Station == Stations[i,1])
+  #gamm.data$Flow[gamm.data$Flow==0] <- NA
+
+  gam_Flow_withGRE <- gamm(log(Flow+1) ~ 
+                             s(gridRain, k=3) +
+                             s(gridRain,MaxT, k=3),
+                             correlation= corCAR1(),
+                             data=gamm.data)
+  out <- list(model = gam_Flow_withGRE,
+        results = data.frame(Station=Stations[i,1],
+                            AIC=summary(gam_Flow_withGRE$lme)$AIC))
+  out
+}
+
+stopCluster(cl)
+
+# store results
+save(Store_FwGRE2,
+     file=paste(storedir,
+                "projectdata/StoreFwGRE2_TrendAnalysis.RData",
+                sep="/"))
+output <- do.call(rbind, lapply(1:length(Store_FwGRE2), 
+                                function(i) rbind(Store_FwGRE2[[i]][[2]])))
+pander(output, caption="Mixed model results for analysis of trend in flow data taking into account Gridded Rainfall and Evapotranspiration")
+
+```
+
+Now do the Mann-Kendall analysis on the residuals
+```{r model5bMK, fig.cap="Mann Kendall analysis of the residuals of the streamflow after GAM model with gridded rainfall and a Evapotranspiration"}
+# do mann kendall on the residuals
+resid_list <- vector("list", length=length(Stations[,1]))
+for (i in seq_along(Stations[,1])) {
+  gamm.data <- subset(flow_rain_maxT_weekly,
+                      flow_rain_maxT_weekly$Station == Stations[i,1])
+  #gamm.data$Flow[gamm.data$Flow==0] <- NA
+
+  resid_list[[i]] <- zoo(residuals(Store_FwGRE2[[i]]$model$lme,
+                 type="normalized"),
+                 order.by=as.Date(na.omit(gamm.data)$Date))
+}
+resid_df <- do.call(merge.zoo,resid_list)
+names(resid_df) <- Stations[,1]
+
+# write this out to run MK_LTP on HPC
+save(resid_df,file="data/GAMMmodel5Resid_grid.rdata")
+
+
+# Bootstrap
+# now run a loop over the number of years (create 41 different sets)
+# do Mann Kendall test on each resonstituted series
+# ---------------------------
+#  -------------------------
+resid_temp <- as.data.frame(resid_df)
+resid_temp$years <- format(time(resid_df),"%Y")
+split_resid <- split(resid_temp[,1:13],resid_temp$years)
+
+
+cl <- makeCluster(6) # create a cluster with 6 cores
+registerDoParallel(cl) # register the cluster
+# use a foreach loop to calibrate
+MK_list <- foreach(i = 1:500,
+                 .packages=c("Kendall","xts")) %dopar% {
+  # reorganise the list elements
+  series <- sample(1:nyears(resid_df),nyears(resid_df))
+  for (j in 1:length(series)) {
+    if (j==1) {
+      new_df <- as.data.frame(split_resid[[series[j]]])
+    } else {
+      new_df <- rbind(new_df,as.data.frame(split_resid[[series[j]]]))
+    }
+  }
+  # run mann kendall on the columns and store the results
+  mk_r <- apply(new_df,2,MannKendall)
+
+  out <- do.call(cbind,mk_r)
+  out
+ }
+stopCluster(cl)
+
+MK_df <- do.call(rbind,MK_list)
+
+pvalues <- subset(MK_df, rownames(MK_df)=="sl")
+tau <- subset(MK_df, rownames(MK_df)=="tau")
+
+sig_set <- list()
+
+for (i in 1:ncol(pvalues)) {
+  set <- data.frame(pvalue=as.numeric(pvalues[,i]),
+                    tau=as.numeric(tau[,i]),catch=rep(colnames(MK_df)[i],nrow(tau)))
+  sig_set[[i]] <- set[set$pvalue < 0.5,]
+}
+
+sig_set_a <- do.call(rbind,sig_set)
+sig_set_a$type <- rep("bootstrap",nrow(sig_set_a))
+
+
+MK_resid <- do.call(rbind,lapply(resid_list,MannKendall))
+
+
+real_df <- data.frame(pvalue = as.numeric(MK_resid[,2]),
+                      tau = as.numeric(MK_resid[,1]),
+                      catch=Stations[,1],
+                      type=rep("real",nrow(MK_resid)))
+# A histogram of taus
+
+hp <- ggplot(sig_set_a, aes(x=tau)) + 
+  geom_histogram(binwidth=0.03,fill="blue", alpha=0.5)
+# Histogram of significant tau's, divided by catch
+# With panels that have the same scaling, but different range
+# (and therefore different physical sizes)
+hp <- hp + facet_wrap(~ catch,ncol=5) + theme_bw()
+# add a red point for the real slope from the data
+p_value <- ifelse(real_df$pvalue<0.05,"< 0.05",">= 0.05")
+hp <- hp + geom_point(data=real_df,aes(x=tau, y=0,colour=p_value),
+                shape=16,size=5) +
+  facet_wrap(~ catch,ncol=5) #+ ggtitle("Residuals Streamflow after GAM") #+
+hp <- hp + scale_colour_manual(values = c("< 0.05" = "red", 
+                                          ">= 0.05" = "blue"))
+hp <- hp + theme(axis.text.x = element_text(angle=45,
+                                            vjust = 0.5,
+                                            hjust = 0.5, 
+                                            size = rel(1.2)),
+                 axis.text.y = element_text(size = rel(1.2)),
+                 axis.title = element_text(size=rel(1.5)),
+                 strip.text = element_text(size=rel(1.5), 
+                                           face = "bold"))
+print(hp)
+
+save(real_df, file="../projectdata/GrMKResidGAM_MDPaper.Rdata")
+save(sig_set_a, file="../projectdata/GrMKResidGAM_bootstrap_MDPaper.Rdata")
+save(hp, file="../projectdata/Figure7ResidGAM_MDPaper.Rdata")
+#
+# # production quality tiff, this is Figure 7 in the manuscript
+tiff("../manuscript/Figure7_ResidGAM_MDPaper.tif",res=600,compression="lzw",
+     width=10*480,height=10*480)
+print(hp)
+dev.off()
+
+
+
+
+pander(real_df, caption="Mann Kendall results for the GAMM residuals with gridded rainfall")
+rm(Store_FwGRE2)
+```
+### Read in the MKLTP results on the GAM residuals for the gridded data 
+
+The Mann-Kendall analysis was moved to the HPC in January 2019 to be able to use the MKLTP analysis. Here the results of that analysis is read into the document. The script for the MKLTP analysis is called: "ResidualsMannkendallLTP.R" and this is in the VirtExp/Rcode/HPC folder on github.
+
+```{r}
+load(paste(storedir,
+                "projectdata/HPCresults/Store_Res_Mod5_grid.Rdata", sep="/"))
+
+MK_standard <- lapply(Store_resid_grid, "[[","Mann_Kendall")
+Hsignif <- lapply(Store_resid_grid, "[[","Significance_of_H")
+MK_LTP <- lapply(Store_resid_grid, "[[","Mann_Kendall_LTP")
+
+ResMod5_grid_MKLTP <- cbind(do.call(rbind, MK_standard),do.call(rbind, Hsignif),
+                    do.call(rbind, MK_LTP))
+colnames(ResMod5_grid_MKLTP)[c(6,8,10)] <- paste(c("MK","Hest","MKLTP"), 
+                                         "2_sided_pvalue",sep="_")
+
+weeklyTable_Mod5_grid <- data.frame(Catchment = Stations[,1], 
+                  `tau_MK` = ResMod5_grid_MKLTP[,1],
+                  `p-value MK` = ResMod5_grid_MKLTP[,6],
+                  `Hurst value` = ResMod5_grid_MKLTP[,7],
+                  `Hurst p-value` = ResMod5_grid_MKLTP[,8],
+                  `MK LTP p-value` = ResMod5_grid_MKLTP[,10])
+
+save(weeklyTable_Mod5_grid, file="../projectdata/GrMKResidGAM_MDPaper.Rdata")
+pander(weeklyTable_Mod5_grid,
+       caption="Mann-Kendall test (Hamed, 2008)
+      results on the residuals of model 5 (Gridded data).
+       p-values are considered significant at the 5% level.")
+```
+

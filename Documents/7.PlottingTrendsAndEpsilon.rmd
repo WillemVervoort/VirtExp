@@ -1,0 +1,358 @@
+---
+title: "Analysis of HPC results 2"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document:
+      fig_width: 7
+      fig_height: 6
+      fig_caption: true
+bibliography: StreamflowTrends.bib
+---
+```{r setup, warning=F, message=F}
+# root dir
+knitr::opts_knit$set(root.dir ="D:/Cloudstor/Virtual Experiments/VirtExp")
+#knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_chunk$set(echo = TRUE)
+# LOAD REQUIRED PACKAGES # #####
+library(pander)
+library(tidyverse)
+library(xts)
+library(zoo)
+library(reshape2)
+library(hydromad)
+library(Kendall)
+library(mgcv)
+```
+
+This rmarkdown document and the resulting pdf are stored on [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository.
+
+# Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.). This is the seventh part of the series that performs the Mann-Kendall and gam trend analysis on the residuals calculated in part 6, as well as comparing the non-parametric $\epsilon$ from the fifth part of the series with the numerical modelling $\epsilon$ following @Chiew2006.
+
+This script also generates final versions of *Figure 4* and *Figure 8* in the manuscript. 
+
+To recap, we have residuals for predictions between 1970 - 2010 of calibrated models across 13 catchments (calibrated on 1970 - 2010). However, there are results for both station rainfall and gridded rainfall for both the SimHyd and GR4J models to make sure there is no difference between these. For all the fits, performances were extracted and initial plots made in part 6 of the series. It is clear from those plots (which will be partly repeated here) that SimHyd performed more poorly than GR4J.
+
+The difference between using daily or monthly data would have made a major difference in the calibration performance. However, overall, the calibration performance needs to be taken into account in relation to the Mann-Kendall trends in the residuals and the derived $\epsilon$.
+
+Apart from running a Mann Kendall trend analysis on the residuals, this document also fits a linear trend using GAMM as a comparison to the Mann-Kendall
+
+```{r preliminary}
+load("data/ClimCh_project_MD.Rdata")
+
+Results <- data.frame(station=character(length=10),trend=numeric(length=10),
+                      p_trend=numeric(length=10),r_sq=numeric(length=10),
+                      tau=numeric(length=10),p_tau=numeric(length=10),
+                      Mod.r.sq=numeric(length=10), Mod.bias=numeric(length=10))
+``` 
+
+# Mann Kendall and GAMM trend analysis of the residuals
+
+## model results with station data
+
+This has been revised in 2019 and runs LMKTP on the residuals rather than just simply Mann Kendall.
+
+```{r GR4J_residuals_MK}
+
+# read in the residual data list from part 6 for all 
+load(file="../ProjectData/residuals/GR4JHPCresiduals.Rdata")
+
+GR4J_results <- list()
+
+# also read in the model performance from part 6 (OutputMod)
+load("../ProjectData/ModelResults2.Rdata")
+Modelperf <- OutputMod2[OutputMod2$model=="GR4J Station Rainfall Data",] 
+
+
+
+# run through a loop
+for (i in seq_along(Stations[,1])){
+  Results[,1] <- Stations[i,1]
+  # run over the 10 calibrations
+  for (j in 1:ncol(Residuals[[i]])) {
+# Create the residual data set for the GAM model
+    mod_df <- data.frame(resid=Residuals[[i]][,j],trend=1:nrow(Residuals[[i]]))
+    # run the GAMM and store results
+    mod_test <- gam(resid~trend,data=mod_df,
+                    na.action=na.omit,correlation=corCAR1())
+    Results[j,2:4] <- c(as.numeric(summary(mod_test)$p.table[2,c(1,4)]),
+                        as.numeric(summary(mod_test)$r.sq))
+    # run the mann-kendall and store results
+    MKout <- MannKendall(mod_df$resid)
+    Results[j,5:6] <- as.numeric(MKout[1:2])
+    
+    # add the model performance
+    Results[j,7:8] <- Modelperf[(i-1)+j,1:2]
+  }
+  GR4J_results[[i]] <- Results
+}
+    
+    
+```
+## GR4J results with gridded rainfall data
+
+```{r GR4JGrid_residuals_MK}
+# read in the residual data list from part 6 for all stations
+load(file="../ProjectData/residuals/GR4JGridHPCresiduals.Rdata")
+
+GR4JGrid_results <- list()
+# from section 6 model performance
+Modelperf <- OutputMod2[OutputMod2$model=="GR4J Gridded Rainfall Data",] 
+
+
+# run through a loop
+for (i in seq_along(Stations[,1])){
+  Results[,1] <- Stations[i,1]
+  # run over the 10 calibrations
+  for (j in 1:ncol(Residuals[[i]])) {
+# Create the residual data set for the GAM model
+    mod_df <- data.frame(resid=Residuals[[i]][,j],trend=1:nrow(Residuals[[i]]))
+    # run the GAMM and store results
+    mod_test <- gam(resid~trend,data=mod_df,
+                    na.action=na.omit,correlation=corCAR1())
+    Results[j,2:4] <- c(as.numeric(summary(mod_test)$p.table[2,c(1,4)]),
+                        as.numeric(summary(mod_test)$r.sq))
+    # run the mann-kendall and store results
+    MKout <- MannKendall(mod_df$resid)
+    Results[j,5:6] <- as.numeric(MKout[1:2])
+    
+    # add the model performance
+    Results[j,7:8] <- Modelperf[(i-1)+j,1:2]
+  }
+  GR4JGrid_results[[i]] <- Results
+}
+    
+```
+
+## SimHyd results with station rainfall data
+
+```{r Simhyd_residuals_MK}
+# read in the residual data list from part 6 for all stations
+load(file="../ProjectData/residuals/SimHydHPCresiduals.Rdata")
+
+Simhyd_results <- list()
+
+# from section 6 model performance
+Modelperf <- OutputMod2[OutputMod2$model=="SimHyd Station Rainfall Data",] 
+
+
+# run through a loop
+for (i in seq_along(Stations[,1])){
+  Results[,1] <- Stations[i,1]
+  # run over the 10 calibrations
+  for (j in 1:ncol(Residuals[[i]])) {
+# Create the residual data set for the GAM model
+    mod_df <- data.frame(resid=Residuals[[i]][,j],trend=1:nrow(Residuals[[i]]))
+    # run the GAMM and store results
+    mod_test <- gam(resid~trend,data=mod_df,
+                    na.action=na.omit,correlation=corCAR1())
+    Results[j,2:4] <- c(as.numeric(summary(mod_test)$p.table[2,c(1,4)]),
+                        as.numeric(summary(mod_test)$r.sq))
+    # run the mann-kendall and store results
+    MKout <- MannKendall(mod_df$resid)
+    Results[j,5:6] <- as.numeric(MKout[1:2])
+    
+    # add the model performance
+    Results[j,7:8] <- Modelperf[(i-1)+j,1:2]
+  }
+  Simhyd_results[[i]] <- Results
+}
+    
+```
+
+## SimHyd results with gridded rainfall data
+
+```{r SimhydGrid_residuals_MK}
+# read in the residual data list from part 6 for all stations
+#load(file="../ProjectData/residuals/SimHydGridHPCresiduals.Rdata")
+# Rdata file seems unreadable, use later RDS file
+Residuals <- readRDS("../ProjectData/residuals/SimHydGridHPCresiduals.RDS") 
+
+SimhydGrid_results <- list()
+
+# from section 6 model performance
+Modelperf <- OutputMod2[OutputMod2$model=="SimHyd Gridded Rainfall Data",] 
+
+
+# run through a loop
+for (i in seq_along(Stations[,1])){
+  Results[,1] <- Stations[i,1]
+  # run over the 10 calibrations
+  for (j in 1:ncol(Residuals[[i]])) {
+# Create the residual data set for the GAM model
+    mod_df <- data.frame(resid=Residuals[[i]][,j],trend=1:nrow(Residuals[[i]]))
+    # run the GAMM and store results
+    mod_test <- gam(resid~trend,data=mod_df,
+                    na.action=na.omit,correlation=corCAR1())
+    Results[j,2:4] <- c(as.numeric(summary(mod_test)$p.table[2,c(1,4)]),
+                        as.numeric(summary(mod_test)$r.sq))
+    # run the mann-kendall and store results
+    MKout <- MannKendall(mod_df$resid)
+    Results[j,5:6] <- as.numeric(MKout[1:2])
+    
+    # add the model performance
+    Results[j,7:8] <- Modelperf[(i-1)+j,1:2]
+  }
+  SimhydGrid_results[[i]] <- Results
+}
+    
+```
+
+## Plotting of all the trends (MK and GAMM)
+
+```{r merge_manageresults}
+# I need to make one df wich stacks MK and trend, best to do this via tibble
+# first merge the lists into dataframes, add the model name and stack
+OverallResults <- rbind(cbind(model="GR4J",do.call(rbind,GR4J_results)),
+                        cbind(model="GR4JGrid",do.call(rbind,GR4JGrid_results)),
+                        cbind(model="SimHyd",do.call(rbind,Simhyd_results)),
+                        cbind(model="SimHydGrid",
+                              do.call(rbind,SimhydGrid_results)))
+
+# now split the MK from the GAMM
+OverallResults_GAMM <- cbind("Linear Trend",OverallResults[,c(1:4,8:9)])
+OverallResults_MK <- cbind("Mann Kendall", OverallResults[,c(1:2,6:9)])
+# make column names the same
+colnames(OverallResults_GAMM) <- 
+  colnames(OverallResults_MK) <-
+  c("Method", "Model","Station","trend","p_trend","rel.bias","r.squared")
+
+# Now stack again
+plot.df <- rbind(OverallResults_GAMM,OverallResults_MK)
+plot.df$sig <- ifelse(plot.df$p_trend < 0.05,1,0)
+
+```
+
+### Summary table of the trend values found in the analysis
+From this data, we can also derive a summary table that summarises the slopes and Kendall tau values and indicates whether they are significant, by calculating the average of the "sig" column. A value of 1 would indicate all slopes are significant, while a value of 0 indicates all slopes are not significant.
+
+```{r summaryTableSlopes}
+test <- group_by(plot.df,Station,Method,Model)
+test2 <- summarize(test, Mean_slope=mean(trend), 
+                   significance=mean(sig))
+LinearTrends <- filter(test2, Method=="Linear Trend")
+MKtaus <- filter(test2, Method=="Mann Kendall")
+final_table <- cbind(as.data.frame(LinearTrends)[,c(1,3:5)],
+                     as.data.frame(MKtaus[,c(4,5)]))
+colnames(final_table) <- c(colnames(test2)[c(1,3)],
+                           "slope Linear","sign. Linear",
+                           "MK tau", "sign. tau")
+pander(final_table, caption="summary of slopes for models, methods and stations")
+```
+
+### Trends against r-squared of model calibration
+
+```{r Trend_vs_Performance, fig.cap="derived Mann Kendall trends and Linear Trends plotted agains the performance of the model"}
+# Now plot the actual trends
+p <- ggplot(plot.df, aes(x = r.squared, y = trend)) +
+  scale_colour_manual(name="Model", values=c("darkGreen", "Red","Blue","purple"))+  
+  scale_shape_discrete(name="Significance") +#,low="red", high="blue")  +
+  geom_point(aes(col=Model, pch=as.factor(sig))) +  facet_wrap(~ Method, scales="free", ncol=1)
+p
+
+
+```
+
+This plot suggests that there is no real relationship between the model performance and the trend derived from the modelled data.
+
+\newpage
+
+# $\epsilon$ plotting
+
+First read in the data from the previous analyses, and combine to create an overall data frame for plotting.
+
+```{r readData}
+OutputChiewSimHyd <- read.csv("../ProjectData/SimHydHPC_ChiewAnalysis.csv")
+OutputChiewSimHydGrid <-
+  read.csv("../ProjectData/SimHydGridHPC_ChiewAnalysis.csv")
+OutputChiewGR4J <- read.csv("../ProjectData/GR4JHPC_ChiewAnalysis.csv")
+OutputChiewGR4JGrid <- read.csv("../ProjectData/GR4JGridHPC_ChiewAnalysis.csv")
+non_par_eta <- read.csv("Data/non_par_eta.csv")
+
+
+OutputChiewSimHyd$mod <- "SimHyd"
+OutputChiewSimHydGrid$mod <- "SimHydGrid"
+OutputChiewGR4J$mod <- "GR4J"
+OutputChiewGR4JGrid$mod <- "GR4JGrid"
+
+## combine everything into one df
+OutputChiew <- cbind(rbind(OutputChiewSimHyd,OutputChiewSimHydGrid,
+                           OutputChiewGR4J, OutputChiewGR4JGrid),
+                     c(rep(non_par_eta$stn_eta,each=10),
+                       rep(non_par_eta$grid_eta,each=10),
+                       rep(non_par_eta$stn_eta,each=10),
+                       rep(non_par_eta$grid_eta,each=10)))
+colnames(OutputChiew)[7] <- "np_eta_p"
+```
+
+## A plot comparing the model derived and the non-parametric $\epsilon$ values
+This plot shows the non-parametric $\epsilon$ values in comparison with the model derived values. A thing to observe is thata the model derived $\epsilon$ values for SimHyd are essentially all the same (with some small variation), regardless of the gridded or non-gridded data. In contracst the values derived using the GR4J modelling are much more variable. However for both models, it is clear that the model derived $\epsilon$ values are much lower than most of the non-parametric values. However, it needs to be kept in mind that the model derived values are based on daily data, while the non-parametric values, which are much more aligned with the Chiew (2006) values, are again based on annual data.
+
+This is *Figure 4* in the manuscript
+
+```{r epsilonPlot, fig.width=8, fig.height = 11, fig.cap="Rainfall elasticities calculated using a non-parametric method (Chiew, 2006) (grey triangles) and using two different rainfall runoff models (SimHyd and GR4J) and scaled gridded and non-griddd rainfall and temperature data (black dots (means) and grey boxplots with small black dots as outliers). The model calibrations were replicated 10 times to cover parameter equifinality. This equifinality is represented by the boxplots."}
+
+p <- ggplot(OutputChiew, aes(x = station, y = eta_p)) +
+  geom_boxplot(fill ="blue", coef=0.5, alpha=0.5) +  facet_wrap(~ mod, ncol=1) +
+  stat_summary(fun.y=mean, geom="point", shape=16, col="blue",lwd=2)
+
+p <- p +  geom_point(aes(x=station, y=np_eta_p),
+           shape=17,size=3,colour="red", fill="red") + 
+        facet_wrap(~ mod,ncol=1)
+p <- p +  xlab("Station") + ylim(-0.5,3) +
+  theme_bw() +
+  theme(axis.title.x = element_text(face="bold",  size=14),
+        axis.text.x  = element_text(size=12)) +
+  ylab("Rainfall Elasticity") +
+  theme(axis.title.y = element_text(face="bold",  size=16),
+        axis.text.y  = element_text(size=12)) +
+  theme(legend.text = element_text( size = 12))+
+  theme(legend.title = element_text(size=14, face="bold")) +
+  theme(strip.text.x = element_text(size=14, face="bold"))
+p
+
+# Only gridded rainfall
+OutputChiew2 <- OutputChiew[(OutputChiew$mod == "GR4JGrid" |
+                              OutputChiew$mod == "SimHydGrid"),]
+
+p2 <- ggplot(OutputChiew2, aes(x = station, y = eta_p)) +
+  geom_boxplot(fill="blue", alpha=0.5) +  facet_wrap(~ mod, ncol=1) +
+  stat_summary(fun.y=mean, geom="point", shape=16, col="blue",lwd=2, size=3)
+
+p2 <- p2 +  geom_point(aes(x=station, y=np_eta_p),
+           shape=17,size=5,colour="red", fill="red") 
+#+ 
+#        facet_wrap(~ mod,ncol=1)
+p2 <- p2 +  xlab("Station") + ylim(-0.5,3) +
+  theme_bw() +
+  theme(axis.title.x = element_text(face="bold",  size=rel(2)),
+        axis.text.x  = element_text(size=rel(1.5))) +
+  ylab("Rainfall Elasticity") +
+  theme(axis.title.y = element_text(face="bold",  size=rel(2)),
+        axis.text.y  = element_text(size=rel(1.5))) +
+  theme(legend.text = element_text( size = rel(1.5)))+
+  theme(legend.title = element_text(size=rel(1.5), face="bold")) +
+  theme(strip.text.x = element_text(size=rel(2), face="bold")) 
+
+
+labels <- c(GR4JGrid = "GR4J Gridded Rainfall Data", SimHydGrid = "SimHyd Gridded Rainfall Data")
+p2 <- p2 + facet_wrap(. ~ mod, labeller=labeller(mod = labels), ncol=1)
+
+
+tiff("../manuscript/Figure4_RainfallElasticityPlot.tif",
+  width=16*480,height=12*480,
+     res=600, compression="lzw")
+print(p2)
+dev.off()
+
+# Write away the data
+save(OutputChiew2,file="../ProjectData/Figure4Results.Rdata")
+
+```
+
+
+\newpage
+
+
+

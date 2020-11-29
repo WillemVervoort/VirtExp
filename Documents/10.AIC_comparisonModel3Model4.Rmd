@@ -1,0 +1,61 @@
+---
+title: "Compare  results model 3 and model 4"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document:
+      fig_width: 7
+      fig_height: 6
+      fig_caption: true
+---
+```{r packages, warning=F, message=F}
+require(tidyverse)
+require(lubridate)
+require(pander)
+panderOptions('table.split.cells', 12)
+panderOptions('table.alignment.default', 'center')
+panderOptions('table.alignment.rownames', 'right')
+```
+```{r setup}
+# root dir
+knitr::opts_knit$set(root.dir = "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+```
+
+This rmarkdown document and the resulting pdf are stored on  [github](https://github.com/WillemVervoort/VirtExp). All directories (apart from the root working directory) refer to the directories in this repository
+
+## Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.). This document answers the reviewers question whether there is a systematci difference in the AIC values for "model 3" and "model 4", see document number 3 in this series.
+
+## Read in the data  
+The data are the AIC values from Table 5 and Table 6 in the manuscript.
+```{r readdata}
+Table5 <- read_csv("../ProjectData/Table5.csv")
+Table6 <- read_csv("../ProjectData/Table6.csv")
+```
+
+Extract the AIC values and combine into a new table
+
+```{r AICtable}
+AICTable <- tibble(Catchment = Table5$Station,
+                   AICModel3 = Table5$AIC,
+                   AICModel4 = Table6$AIC,
+                   `Difference3-4` = Table5$AIC - Table6$AIC)
+
+pander(AICTable)
+
+mean(AICTable$`Difference3-4`)
+median(AICTable$`Difference3-4`)
+```
+
+## plot on 1:1
+
+Plot the AIC values against each other and insert a 1:1 line
+
+```{r AICplot}
+AICTable %>%
+  ggplot(aes(AICModel3,AICModel4,colour=Catchment)) +
+  geom_point(size=3) + geom_abline(linetype = 2) + theme_bw()
+
+
+```
+

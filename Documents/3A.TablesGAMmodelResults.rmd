@@ -1,0 +1,127 @@
+---
+title: "Tables of GAM results in paper"
+author: "Willem Vervoort, Michaela Dolk & Floris van Ogtrop"
+date: "`r Sys.Date()`"
+output: 
+    pdf_document:
+      fig_width: 7
+      fig_height: 6
+      fig_caption: true
+---
+```{r setup, warning=F, message=F}
+# root dir
+knitr::opts_knit$set(root.dir = 
+#                       "D:/Cloudstor/Virtual Experiments/VirtExp")
+                       "C:/Users/rver4657/ownCloud/Virtual Experiments/VirtExp")
+knitr::opts_chunk$set(echo = TRUE)
+# LOAD REQUIRED PACKAGES # #####
+library(pander)
+library(tidyr)
+library(xts)
+library(zoo)
+library(Kendall)
+library(mgcv)
+```
+
+This rmarkdown document and the resulting pdf are stored on [Zenodo](https://zenodo.org/record/1013991#.XpZyfMgzb_4). All directories (apart from the root working directory) refer to the directories in the underlying github repository. 
+
+# Introduction
+This document is related to the manuscript "Disentangling climate change trends in Australian streamflow" (vervoort et al.), submitted. 
+
+This document is a further component on the analysis of the streamflow data using Generalised Additive models (GAM) testing for a trend in the data , or testing for a trend in the residuals (part 3 of the series, [3.GAMmodelTests.pdf](./3.GAMmodelTests.pdf)). This document, part 3A, only creates table 4, 5, 6 in the Manuscript and back transforms the trends.
+For the back transformation we use :
+$BackTransformedTrend\; =\; exp(Trend) - 1$  
+see [3B.InterpretationOfSlopeExplantion.pdf](./3B.InterpretationOfSlopeExplantion.pdf)
+The data for this document has been generated in document 3 and was stored in a temporary directory called **"../projectdata"**, so one directory up and then a directory called "projectdata". This directory is not included on github, as this data can be regenerated using document 3.
+Only the results using the precipitation data from the gridded rainfall is used here as the results from the station rainfall are not different.  
+
+# Table 4   
+This table combines the results of model 1 and model 2, or the simple trend analysis for flow (Q) and precipitation (P).  
+
+```{r Table_4}
+# read in the flow data (a data frame called Store2)
+load("../projectdata/Store2_TrendOnlyAnalysis.RData")
+
+Flow <- do.call(rbind, lapply(1:length(Store2), function(i) rbind(Store2[[i]][[2]])))
+
+# read in the Precipitation data (a data frame called Store_Rain)
+load("../projectdata/StoreGridRain_TrendAnalysis.RData")
+Rain <- do.call(rbind, lapply(1:length(Store_GridRain), 
+                     function(i) rbind(Store_GridRain[[i]][[2]])))
+
+# create a data frame that combines the relevant columns
+# if p.value < 0.1 do not calculate the annual trend
+Table4 <- data.frame(Station = Flow$Station, 
+                     Qtrend = Flow$Value, Qpvalue = Flow$p.value,
+                     Q_percent = ifelse(Flow$p.value < 0.1,
+                                        (exp(Flow$Value)-1),NA),
+                     Ptrend = Rain$Value, Ppvalue = Rain$p.value,
+                     P_percent = ifelse(Rain$p.value < 0.1,
+                                        (exp(Rain$Value)-1),NA))
+# now save the table as a csv file
+write.csv(Table4, "../projectdata/Table4.csv", row.names=F)
+# show table
+pander(Table4, caption = "This is Table 4 in the manuscript")
+```
+
+# Table 5   
+This table combines the results of model 3, which is the GAMM analysis for flow (Q) taking into account the effect of precipitation (P). The AIC values are given to allow comparison with Table 6 in the manuscript.  
+
+```{r Table_5}
+# read in the results of model 3 (a data frame called Store_Fwr)
+load("../projectdata/StoreFwGR_TrendAnalysis.RData")
+
+Flow <- do.call(rbind, lapply(1:length(Store_FwGR), 
+                            function(i) rbind(Store_FwGR[[i]][[2]])))
+
+# create a data frame that combines the relevant columns
+# if p.value < 0.1 do not calculate the annual trend
+Table5 <- data.frame(Station = Flow$Station, AIC = Flow$AIC,
+                     Qtrend = Flow$Value, Qpvalue = Flow$p.value,
+                     Q_percent = ifelse(Flow$p.value < 0.1,
+                                    (exp(Flow$Value)-1),NA))
+# now save the table as a csv file
+write.csv(Table5, "../projectdata/Table5.csv", row.names=F)
+# show table
+pander(Table5, caption = "This is Table 5 in the manuscript")
+```
+
+# Table 6   
+This table combines the results of model 4 and 5, which is the GAMM analysis for flow (Q) taking into account the effect of precipitation (P) and actual ET via s(P,maxT). The AIC values are given to allow comparison with Table 5 in the manuscript.  
+
+```{r Table_6}
+# read in the results of model 4 (a data frame called Store_FwGRE)
+load("../projectdata/StoreFwGRE_TrendAnalysis.RData")
+
+Flow_m4 <- do.call(rbind, lapply(1:length(Store_FwGRE), 
+                          function(i) rbind(Store_FwGRE[[i]][[2]])))
+
+# read in the results of model 5 (a data frame called Store_FwGRE2)
+load("../projectdata/StoreFwGRE2_TrendAnalysis.RData")
+
+Flow_m5 <- do.call(rbind, lapply(1:length(Store_FwGRE2),
+                          function(i) rbind(Store_FwGRE2[[i]][[2]])))
+# load "real_df" with results Mann-Kendall for Model 5
+load("../projectdata/GrMKResidGAM_MDPaper.Rdata")
+
+
+
+# create a data frame that combines the relevant columns
+# if p.value < 0.1 do not calculate the annual trend
+Table6 <- data.frame(Station = Flow_m4$Station, AIC = Flow_m4$AIC,
+                     Qtrend = Flow_m4$Value, 
+                     Qpvalue = Flow_m4$p.value,
+                     Q_percent = ifelse(Flow_m4$p.value < 0.1,
+                                 (exp(Flow_m4$Value)-1),NA),
+                     AIC_5 = Flow_m5$AIC,
+                     `tau MK` = weeklyTable_Mod5_grid$tau_MK,
+                     `p-value MK` = weeklyTable_Mod5_grid$p.value.MK,
+                     `Hurst coefficient` = weeklyTable_Mod5_grid$Hurst.value,
+                     `Hurst p-value` = weeklyTable_Mod5_grid$Hurst.p.value,
+                     `p-value LTP MK` = weeklyTable_Mod5_grid$MK.LTP.p.value)
+
+# now save the table as a csv file
+write.csv(Table6, "../projectdata/Table6.csv", row.names=F)
+# show table
+pander(Table6, caption = "This is Table 6 in the manuscript")
+```
